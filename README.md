@@ -1,7 +1,5 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
-<!-- TODO: on publish, add the pkg.go.dev badge here and drop the "not
-     published" note in Installation:
-     [![Go Reference](https://pkg.go.dev/badge/github.com/ctx42/gitaid.svg)](https://pkg.go.dev/github.com/ctx42/gitaid) -->
+[![Go Reference](https://pkg.go.dev/badge/github.com/ctx42/gitaid.svg)](https://pkg.go.dev/github.com/ctx42/gitaid)
 
 # gitaid
 
@@ -42,10 +40,6 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 - The `git` binary on `PATH`. `GetFile` additionally requires `tar`.
 
 ## Installation
-
-> [!NOTE]
-> The module is not published at `github.com/ctx42/gitaid` yet; `go get` will
-> resolve once the repository is public.
 
 ```shell
 go get github.com/ctx42/gitaid
