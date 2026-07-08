@@ -1,0 +1,6 @@
+github.com/ctx42/testing v0.55.0 h1:xzYg+zW6xx2BDemveLhIztU6BdY9O6KCCR1FeYEt+mk=
+github.com/ctx42/testing v0.55.0/go.mod h1:wRBqNRtlxDZnXIjgCX3zr05Acl6JC1D6cSBN2IpaMIs=
+github.com/ctx42/testkit v0.7.0 h1:vdoedBK7j1FDezYOxNw0j0z0Lm/I9bGocMWGXZqQHpk=
+github.com/ctx42/testkit v0.7.0/go.mod h1:TuyXl4VM5PLj9VKMFQxVFyJH84fotgVMuxdwXDSEo7M=
+github.com/ctx42/xdef v0.1.0 h1:NILTQhyp7G/ALyH3qHvK0MLCQOaM0FWrUe08oHGsDcU=
+github.com/ctx42/xdef v0.1.0/go.mod h1:KY52keTViC/5i/nI25eRNBtYifhRqqyLs7gvIVbbaZ8=
