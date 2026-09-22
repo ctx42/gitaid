@@ -55,3 +55,28 @@ func ExampleGetFile() {
 		log.Fatal(err)
 	}
 }
+
+func ExampleDescribe() {
+	ctx := context.Background()
+
+	// The empty string means the current working directory. Prints the
+	// closest tag alone ("v1.2.0"), or with the distance from HEAD
+	// ("v1.2.0-3-g9ab3d41"); a dirty tree appends "-dev".
+	name, err := gitaid.Describe(ctx, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(name)
+}
+
+func ExampleDescribe_withMatch() {
+	ctx := context.Background()
+
+	// Only tags like "v1.2.0" are considered, so "nightly" is skipped -
+	// though the commit count still spans the commit it points at.
+	name, err := gitaid.Describe(ctx, "", gitaid.WithMatch("v[0-9]*"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(name)
+}

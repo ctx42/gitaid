@@ -25,7 +25,7 @@ import (
 func Test_IsRepo(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -38,7 +38,7 @@ func Test_IsRepo(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -52,7 +52,7 @@ func Test_IsRepo(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -71,7 +71,7 @@ func Test_IsRepo(t *testing.T) {
 func Test_IsEmpty(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -85,7 +85,7 @@ func Test_IsEmpty(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -100,7 +100,7 @@ func Test_IsEmpty(t *testing.T) {
 
 	t.Run("not empty", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -118,7 +118,7 @@ func Test_IsEmpty(t *testing.T) {
 func Test_ProjectName(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -132,7 +132,7 @@ func Test_ProjectName(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, oskit.MkdirAll(t, t.TempDir(), "project"))
 		prj.Exe("git", "init")
 		prj.Close()
@@ -147,7 +147,7 @@ func Test_ProjectName(t *testing.T) {
 
 	t.Run("repo url", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Exe("git", "remote", "add", "origin", prjkit.GitOrigin)
@@ -165,7 +165,7 @@ func Test_ProjectName(t *testing.T) {
 		// --- Given ---
 		origin := "example.com:vr/skw-proj"
 
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Exe("git", "remote", "add", "origin", origin)
@@ -181,7 +181,7 @@ func Test_ProjectName(t *testing.T) {
 
 	t.Run("repository without origin", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, oskit.MkdirAll(t, t.TempDir(), "project"))
 		prj.Exe("git", "init")
 		prj.Close()
@@ -196,7 +196,7 @@ func Test_ProjectName(t *testing.T) {
 
 	t.Run("empty repo resolves current directory", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, oskit.MkdirAll(t, t.TempDir(), "project"))
 		prj.Exe("git", "init")
 		prj.Close()
@@ -214,7 +214,7 @@ func Test_ProjectName(t *testing.T) {
 func Test_ProjectOrigin(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -228,7 +228,7 @@ func Test_ProjectOrigin(t *testing.T) {
 
 	t.Run("repository without origin", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -243,7 +243,7 @@ func Test_ProjectOrigin(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Exe("git", "remote", "add", "origin", prjkit.GitOrigin)
@@ -259,7 +259,7 @@ func Test_ProjectOrigin(t *testing.T) {
 
 	t.Run("config line exceeds scanner limit", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		big := strings.Repeat("a", bufio.MaxScanTokenSize+1)
@@ -278,7 +278,7 @@ func Test_ProjectOrigin(t *testing.T) {
 func Test_FirstHash(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -292,7 +292,7 @@ func Test_FirstHash(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -307,7 +307,7 @@ func Test_FirstHash(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		cm := prj.GitInitAddAll()
@@ -327,7 +327,7 @@ func Test_FirstHash(t *testing.T) {
 func Test_LatestHash(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -341,7 +341,7 @@ func Test_LatestHash(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -356,7 +356,7 @@ func Test_LatestHash(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -376,7 +376,7 @@ func Test_LatestHash(t *testing.T) {
 func Test_RevDate(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -390,7 +390,7 @@ func Test_RevDate(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -405,7 +405,7 @@ func Test_RevDate(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		cm1 := prj.GitInitAddAll()
@@ -428,7 +428,7 @@ func Test_RevDate(t *testing.T) {
 
 	t.Run("not existing revision", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -444,7 +444,7 @@ func Test_RevDate(t *testing.T) {
 
 	t.Run("revision output is not a timestamp", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -466,7 +466,7 @@ func Test_RevDate(t *testing.T) {
 func Test_ClosestTag(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -480,7 +480,7 @@ func Test_ClosestTag(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -495,7 +495,7 @@ func Test_ClosestTag(t *testing.T) {
 
 	t.Run("one commit no tags", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -511,7 +511,7 @@ func Test_ClosestTag(t *testing.T) {
 
 	t.Run("one commit and startRev used", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -528,7 +528,7 @@ func Test_ClosestTag(t *testing.T) {
 
 	t.Run("HEAD tagged", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0", "file0.txt")
 		prj.GitInitAddAll()
@@ -545,7 +545,7 @@ func Test_ClosestTag(t *testing.T) {
 
 	t.Run("one commit after tag", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -564,7 +564,7 @@ func Test_ClosestTag(t *testing.T) {
 
 	t.Run("dirty work dir", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0", "file0.txt")
 		prj.GitInitAddAll()
@@ -582,7 +582,7 @@ func Test_ClosestTag(t *testing.T) {
 
 	t.Run("one commit after tag and dirty work dir", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0", "file0.txt")
 		prj.GitInitAddAll()
@@ -602,7 +602,7 @@ func Test_ClosestTag(t *testing.T) {
 
 	t.Run("starting at", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0", "file0.txt")
 		prj.GitInitAddAll()
@@ -623,10 +623,23 @@ func Test_ClosestTag(t *testing.T) {
 	})
 }
 
+func Test_WithMatch(t *testing.T) {
+	t.Run("sets the match glob", func(t *testing.T) {
+		// --- Given ---
+		var cfg describeCfg
+
+		// --- When ---
+		WithMatch("v[0-9]*")(&cfg)
+
+		// --- Then ---
+		assert.Equal(t, "v[0-9]*", cfg.match)
+	})
+}
+
 func Test_Describe(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -640,7 +653,7 @@ func Test_Describe(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -655,7 +668,7 @@ func Test_Describe(t *testing.T) {
 
 	t.Run("one commit no tags", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		cm := prj.GitInitAddAll()
@@ -672,7 +685,7 @@ func Test_Describe(t *testing.T) {
 
 	t.Run("HEAD tagged", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0", "file0.txt")
 		prj.GitInitAddAll()
@@ -689,7 +702,7 @@ func Test_Describe(t *testing.T) {
 
 	t.Run("one commit after tag", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -711,7 +724,7 @@ func Test_Describe(t *testing.T) {
 
 	t.Run("dirty work dir", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0", "file0.txt")
 		prj.GitInitAddAll()
@@ -729,7 +742,7 @@ func Test_Describe(t *testing.T) {
 
 	t.Run("one commit after tag and dirty work dir", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0", "file0.txt")
 		prj.GitInitAddAll()
@@ -746,12 +759,155 @@ func Test_Describe(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, fmt.Sprintf("v0.1.0-1-g%s-dev", cm.Hash), tag)
 	})
+
+	t.Run("match skips a tag that is not a version", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("nightly")
+		prj.Close()
+
+		// --- When ---
+		have, err := Describe(ctx, prj.Root(), WithMatch("v[0-9]*"))
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Contain(t, "v0.1.0-1-g", have)
+	})
+
+	t.Run("match skipping every tag falls back to hash", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		cm := prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := Describe(ctx, prj.Root(), WithMatch("rel-*"))
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assertHash(t, have)
+		assert.Equal(t, cm.Hash, have)
+	})
+}
+
+func Test_CountCommits(t *testing.T) {
+	t.Run("counts every commit reachable from HEAD", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := CountCommits(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, 2, have)
+	})
+
+	t.Run("counts a range", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := CountCommits(ctx, prj.Root(), "v0.1.0..HEAD")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, 1, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := CountCommits(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.Error(t, err)
+		assert.Equal(t, 0, have)
+	})
+}
+
+func Test_Messages(t *testing.T) {
+	t.Run("keeps the body as well as the subject", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		msg := "feat: add a thing\n\nBREAKING CHANGE: it changed"
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", msg)
+		prj.Close()
+
+		// --- When ---
+		have, err := Messages(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Len(t, 2, have)
+		assert.Equal(t, msg, have[1])
+	})
+
+	t.Run("oldest first within a range", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", "fix: second")
+		prj.CreateFileWith("file0 3", "file0.txt")
+		prj.GitCommit("", "feat: third")
+		prj.Close()
+
+		// --- When ---
+		have, err := Messages(ctx, prj.Root(), "v0.1.0..HEAD")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"fix: second", "feat: third"}, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := Messages(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.Error(t, err)
+		assert.Nil(t, have)
+	})
 }
 
 func Test_ChangeLog(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -765,7 +921,7 @@ func Test_ChangeLog(t *testing.T) {
 
 	t.Run("unknown base revision", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -781,7 +937,7 @@ func Test_ChangeLog(t *testing.T) {
 
 	t.Run("base revision equal to HEAD", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -798,7 +954,7 @@ func Test_ChangeLog(t *testing.T) {
 
 	t.Run("one commit ahead of base revision", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -821,7 +977,7 @@ func Test_ChangeLog(t *testing.T) {
 
 	t.Run("multiple commits ahead of base revision", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -850,7 +1006,7 @@ func Test_ChangeLog(t *testing.T) {
 
 	t.Run("changelog since repo start", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -880,7 +1036,7 @@ func Test_ChangeLog(t *testing.T) {
 
 	t.Run("multi paragraph commit messages", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -910,7 +1066,7 @@ func Test_ChangeLog(t *testing.T) {
 
 	t.Run("commit message exceeds scanner limit", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -931,7 +1087,7 @@ func Test_ChangeLog(t *testing.T) {
 func Test_Init(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -948,7 +1104,7 @@ func Test_Init(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -963,7 +1119,7 @@ func Test_Init(t *testing.T) {
 func Test_AddRemote(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -976,7 +1132,7 @@ func Test_AddRemote(t *testing.T) {
 
 	t.Run("empty git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -990,7 +1146,7 @@ func Test_AddRemote(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -1012,7 +1168,7 @@ func Test_AddRemote(t *testing.T) {
 func Test_IsClean(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -1026,7 +1182,7 @@ func Test_IsClean(t *testing.T) {
 
 	t.Run("initialized", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -1041,7 +1197,7 @@ func Test_IsClean(t *testing.T) {
 
 	t.Run("not added file", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.CreateFileWith("file0 1", "file0.txt")
@@ -1057,7 +1213,7 @@ func Test_IsClean(t *testing.T) {
 
 	t.Run("added not committed file", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.CreateFileWith("file0 1", "file0.txt")
@@ -1076,7 +1232,7 @@ func Test_IsClean(t *testing.T) {
 
 	t.Run("added and committed file", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -1096,7 +1252,7 @@ func Test_IsClean(t *testing.T) {
 func Test_WorkTreeStatus(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -1110,7 +1266,7 @@ func Test_WorkTreeStatus(t *testing.T) {
 
 	t.Run("initialized", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.Close()
@@ -1125,7 +1281,7 @@ func Test_WorkTreeStatus(t *testing.T) {
 
 	t.Run("not added file", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.CreateFileWith("file0 1", "file0.txt")
@@ -1141,7 +1297,7 @@ func Test_WorkTreeStatus(t *testing.T) {
 
 	t.Run("added not committed file", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.CreateFileWith("file0 1", "file0.txt")
@@ -1160,7 +1316,7 @@ func Test_WorkTreeStatus(t *testing.T) {
 
 	t.Run("added and committed file", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -1180,7 +1336,7 @@ func Test_WorkTreeStatus(t *testing.T) {
 func Test_Add(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -1193,7 +1349,7 @@ func Test_Add(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.CreateFileWith("file0 1", "file0.txt")
@@ -1213,7 +1369,7 @@ func Test_Add(t *testing.T) {
 func Test_AddAll(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -1226,7 +1382,7 @@ func Test_AddAll(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.CreateFileWith("file0 1", "file0.txt")
@@ -1247,7 +1403,7 @@ func Test_AddAll(t *testing.T) {
 func Test_Commit(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -1260,7 +1416,7 @@ func Test_Commit(t *testing.T) {
 
 	t.Run("empty commit message", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.CreateFileWith("file0 1", "file0.txt")
@@ -1277,7 +1433,7 @@ func Test_Commit(t *testing.T) {
 
 	t.Run("commit", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Exe("git", "init")
 		prj.CreateFileWith("file0 1", "file0.txt")
@@ -1301,7 +1457,7 @@ func Test_Commit(t *testing.T) {
 func Test_Tag(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -1314,7 +1470,7 @@ func Test_Tag(t *testing.T) {
 
 	t.Run("empty tag message", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -1332,7 +1488,7 @@ func Test_Tag(t *testing.T) {
 
 	t.Run("tag", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
@@ -1351,7 +1507,7 @@ func Test_Tag(t *testing.T) {
 func Test_Push(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
@@ -1368,7 +1524,7 @@ func Test_Push(t *testing.T) {
 		branch := randkit.Str()
 		tag := "tag-" + branch
 
-		ctx := context.Background()
+		ctx := t.Context()
 		prj0 := prjkit.New(t, t.TempDir())
 		prj0.Exe("git", "clone", bare, ".")
 		prj0.Exe("git", "checkout", "-b", branch)
@@ -1400,7 +1556,7 @@ func Test_Push(t *testing.T) {
 		branch := randkit.Str()
 		tag := "tag-" + branch
 
-		ctx := context.Background()
+		ctx := t.Context()
 		prj0 := prjkit.New(t, t.TempDir())
 		prj0.Exe("git", "clone", bare, ".")
 		prj0.Exe("git", "checkout", "-b", branch)
@@ -1443,7 +1599,7 @@ func Test_GetFile(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		dst := filepath.Join(t.TempDir(), "from-remote.txt")
 
 		// --- When ---
@@ -1456,7 +1612,7 @@ func Test_GetFile(t *testing.T) {
 
 	t.Run("invalid repo error", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		badRepo := "git@example.com:project/repo.git"
 		dst := filepath.Join(t.TempDir(), "from-remote.txt")
 		ctx, cxl := context.WithTimeout(ctx, 200*time.Millisecond)
@@ -1472,7 +1628,7 @@ func Test_GetFile(t *testing.T) {
 
 	t.Run("invalid branch error", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		badBranch := randkit.Str()
 		dst := filepath.Join(t.TempDir(), "from-remote.txt")
 
@@ -1486,7 +1642,7 @@ func Test_GetFile(t *testing.T) {
 
 	t.Run("invalid repo file error", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		dst := filepath.Join(t.TempDir(), "from-remote.txt")
 
 		// --- When ---
@@ -1499,7 +1655,7 @@ func Test_GetFile(t *testing.T) {
 
 	t.Run("invalid destination error", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		dst := filepath.Join(t.TempDir(), "not_existing", "from-remote.txt")
 
 		// --- When ---
@@ -1515,7 +1671,7 @@ func Test_GetFile(t *testing.T) {
 
 	t.Run("destination is a directory error", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		dst := t.TempDir() // Existing directory makes os.Create fail.
 
 		// --- When ---
@@ -1529,7 +1685,7 @@ func Test_GetFile(t *testing.T) {
 
 	t.Run("very short deadline", func(t *testing.T) {
 		// --- Given ---
-		ctx := context.Background()
+		ctx := t.Context()
 		ctxTO, cxlTO := context.WithTimeout(ctx, time.Millisecond)
 		defer cxlTO()
 

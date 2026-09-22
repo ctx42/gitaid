@@ -72,6 +72,40 @@ default:
 }
 ```
 
+Produce a version stamp for the current state of the repository — the
+closest tag, how far HEAD has moved past it, and whether the working tree
+is dirty:
+
+<!-- gmdoceg:pkg/gitaid/ExampleDescribe -->
+```go
+ctx := context.Background()
+
+// The empty string means the current working directory. Prints the
+// closest tag alone ("v1.2.0"), or with the distance from HEAD
+// ("v1.2.0-3-g9ab3d41"); a dirty tree appends "-dev".
+name, err := gitaid.Describe(ctx, "")
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(name)
+```
+
+Restrict which tags are considered, so a tag like `nightly` cannot shadow
+the release tag a build should carry:
+
+<!-- gmdoceg:pkg/gitaid/ExampleDescribe_withMatch -->
+```go
+ctx := context.Background()
+
+// Only tags like "v1.2.0" are considered, so "nightly" is skipped -
+// though the commit count still spans the commit it points at.
+name, err := gitaid.Describe(ctx, "", gitaid.WithMatch("v[0-9]*"))
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(name)
+```
+
 Generate a changelog from commit summaries since a given revision:
 
 <!-- gmdoceg:pkg/gitaid/ExampleChangeLog -->

@@ -135,7 +135,7 @@ func ProjectOrigin(ctx context.Context, repo string) (string, error) {
 
 // FirstHash returns the abbreviated hash of the first commit in the repo. Git
 // abbreviates to at least seven characters, extending it only as far as needed
-// to stay unambiguous. If the repository has no commits it will return
+// to stay unambiguous. If the repository has no commits, it will return
 // ErrEmptyRepo error.
 func FirstHash(ctx context.Context, repo string) (string, error) {
 	args := []string{
@@ -176,7 +176,7 @@ func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
 }
 
 // ClosestTag returns the closest tag reachable from the start revision. The
-// empty startRev means HEAD. If the returned tag is the same as the startRev
+// empty startRev means HEAD. If the returned tag is the same as the startRev,
 // it means this is the only revision in the repository.
 func ClosestTag(ctx context.Context, repo, startRev string) (string, error) {
 	args := []string{"describe", "--tags", "--abbrev=0"}
@@ -199,15 +199,134 @@ func ClosestTag(ctx context.Context, repo, startRev string) (string, error) {
 	return rev, nil
 }
 
-// Describe uses "git describe" to return human-readable name based on current
-// state of the repository. The "v" from all semantic versions is removed.
-func Describe(ctx context.Context, repo string) (string, error) {
+// DescribeOpt is an option changing the behavior of [Describe].
+type DescribeOpt func(*describeCfg)
+
+// describeCfg is the configuration the [DescribeOpt] options build.
+type describeCfg struct {
+	// The glob restricting which tags are considered.
+	match string
+}
+
+// WithMatch restricts [Describe] to the tags matching the glob, so that a tag
+// like "nightly" or "build-42" does not shadow a release tag. The glob is
+// matched against the tag name; the commit count still spans the commits the
+// skipped tags point at. Without this option every tag is considered.
+func WithMatch(glob string) DescribeOpt {
+	return func(cfg *describeCfg) { cfg.match = glob }
+}
+
+// Describe returns a human-readable name for the current state of the
+// repository. The empty string used for repo means the current working
+// directory.
+//
+// When HEAD sits exactly on a considered tag the result is that tag alone.
+// Otherwise it is the closest considered tag, the number of commits made since
+// it, and the short HEAD hash, in the "<tag>-<count>-g<hash>" form. A dirty
+// working tree appends "-dev". Both annotated and lightweight tags count, and
+// the tag is rendered verbatim, so a leading "v" is kept.
+//
+// Every tag is considered unless [WithMatch] narrows them to a glob. Because
+// the output shape varies, and because a tag name may itself contain "-" and
+// "/", a caller that parses the result tests for the "-<count>-g" infix and
+// splits from the right.
+//
+// Examples:
+//
+//	// HEAD sits on tag "v0.1.0" - the tag stands alone.
+//	Describe(ctx, repo) // "v0.1.0"
+//
+//	// Three commits were made since tag "v1.2.0".
+//	Describe(ctx, repo) // "v1.2.0-3-g9ab3d41"
+//
+//	// The working tree has uncommitted changes.
+//	Describe(ctx, repo) // "v0.1.0-dev"
+//
+//	// The lightweight tag "nightly" is closer to HEAD than "v0.1.0".
+//	Describe(ctx, repo) // "nightly-1-g7b27033"
+//
+//	// The same state, but the glob skips "nightly"; the count still
+//	// spans the commit "nightly" points at.
+//	Describe(ctx, repo, WithMatch("v[0-9]*")) // "v0.1.0-2-g7b27033"
+//
+//	// The closest matching tag has a hierarchical name.
+//	Describe(ctx, repo, WithMatch("rel/*")) // "rel/v1.0.0-1-g96b2af8"
+//
+//	// No tag is reachable at all - the short hash stands alone.
+//	Describe(ctx, repo) // "e11e688"
+//
+//	// A tag exists, but the glob matches none - the same fallback.
+//	Describe(ctx, repo, WithMatch("rel-*")) // "e11e688"
+//
+// It falls back to the bare short hash when no tag is reachable - because the
+// repository has none, or because none matches the glob - so it never reports
+// [ErrNoTags].
+//
+// It returns [ErrEmptyRepo] when the repository has no commits, and
+// [ErrNotRepo] when repo is not a git repository.
+func Describe(
+	ctx context.Context,
+	repo string,
+	opts ...DescribeOpt,
+) (string, error) {
+
+	var cfg describeCfg
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	args := []string{"describe", "--tags", "--always", "--dirty=-dev"}
+	if cfg.match != "" {
+		args = append(args, "--match", cfg.match)
+	}
 	rev, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		return "", err
 	}
 	return rev, nil
+}
+
+// CountCommits returns the number of commits reachable from rev. The empty
+// string used for rev means HEAD.
+func CountCommits(ctx context.Context, repo, rev string) (int, error) {
+	if rev == "" {
+		rev = "HEAD"
+	}
+	sout, err := runGitCmd(ctx, repo, "rev-list", "--count", rev)
+	if err != nil {
+		return 0, err
+	}
+	cnt, err := strconv.Atoi(sout)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", sout, err)
+	}
+	return cnt, nil
+}
+
+// Messages return the full commit messages - the subject and the body of
+// each - for the commits in rng, oldest first. The rng is any revision range
+// git log accepts, for example "v1.2.3..HEAD"; the empty string means every
+// commit reachable from HEAD.
+//
+// Where [ChangeLog] keeps only the subject line, this keeps the body too, so a
+// caller can read a footer such as "BREAKING CHANGE:".
+func Messages(ctx context.Context, repo, rng string) ([]string, error) {
+	if rng == "" {
+		rng = "HEAD"
+	}
+	args := []string{"log", "--reverse", "--pretty=format:%x00%B", rng}
+	sout, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	var msgs []string
+	for msg := range strings.SplitSeq(sout, "\x00") {
+		if msg = strings.TrimSpace(msg); msg != "" {
+			msgs = append(msgs, msg)
+		}
+	}
+	return msgs, nil
 }
 
 // ChangeLog generates changelog between given base revision and the HEAD.
