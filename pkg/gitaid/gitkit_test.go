@@ -760,14 +760,14 @@ func Test_Describe(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("v0.1.0-1-g%s-dev", cm.Hash), tag)
 	})
 
-	t.Run("match skips a tag that is not a version", func(t *testing.T) {
+	t.Run("match skips non-version tag", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll("v0.1.0")
 		prj.CreateFileWith("file0 2", "file0.txt")
-		prj.GitCommit("nightly")
+		cm := prj.GitCommit("nightly")
 		prj.Close()
 
 		// --- When ---
@@ -775,10 +775,10 @@ func Test_Describe(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Contain(t, "v0.1.0-1-g", have)
+		assert.Equal(t, "v0.1.0-1-g"+cm.Hash, have)
 	})
 
-	t.Run("match skipping every tag falls back to hash", func(t *testing.T) {
+	t.Run("match skips every tag", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -793,6 +793,22 @@ func Test_Describe(t *testing.T) {
 		assert.NoError(t, err)
 		assertHash(t, have)
 		assert.Equal(t, cm.Hash, have)
+	})
+
+	t.Run("nil option is ignored", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := Describe(ctx, prj.Root(), nil)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.1.0", have)
 	})
 }
 
@@ -843,7 +859,7 @@ func Test_CountCommits(t *testing.T) {
 		have, err := CountCommits(ctx, prj.Root(), "")
 
 		// --- Then ---
-		assert.Error(t, err)
+		assert.ErrorIs(t, ErrNotRepo, err)
 		assert.Equal(t, 0, have)
 	})
 }
@@ -852,10 +868,11 @@ func Test_Messages(t *testing.T) {
 	t.Run("keeps the body as well as the subject", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
+		msg := "feat: add a thing\n\nBREAKING CHANGE: it changed"
+
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
-		msg := "feat: add a thing\n\nBREAKING CHANGE: it changed"
 		prj.CreateFileWith("file0 2", "file0.txt")
 		prj.GitCommit("", msg)
 		prj.Close()
@@ -899,7 +916,7 @@ func Test_Messages(t *testing.T) {
 		have, err := Messages(ctx, prj.Root(), "")
 
 		// --- Then ---
-		assert.Error(t, err)
+		assert.ErrorIs(t, ErrNotRepo, err)
 		assert.Nil(t, have)
 	})
 }

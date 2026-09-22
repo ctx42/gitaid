@@ -211,7 +211,8 @@ type describeCfg struct {
 // WithMatch restricts [Describe] to the tags matching the glob, so that a tag
 // like "nightly" or "build-42" does not shadow a release tag. The glob is
 // matched against the tag name; the commit count still spans the commits the
-// skipped tags point at. Without this option every tag is considered.
+// skipped tags point at. Without this option, or with an empty glob, every
+// tag is considered.
 func WithMatch(glob string) DescribeOpt {
 	return func(cfg *describeCfg) { cfg.match = glob }
 }
@@ -272,7 +273,9 @@ func Describe(
 
 	var cfg describeCfg
 	for _, opt := range opts {
-		opt(&cfg)
+		if opt != nil {
+			opt(&cfg)
+		}
 	}
 
 	args := []string{"describe", "--tags", "--always", "--dirty=-dev"}
@@ -303,13 +306,16 @@ func CountCommits(ctx context.Context, repo, rev string) (int, error) {
 	return cnt, nil
 }
 
-// Messages return the full commit messages - the subject and the body of
+// Messages returns the full commit messages - the subject and the body of
 // each - for the commits in rng, oldest first. The rng is any revision range
 // git log accepts, for example "v1.2.3..HEAD"; the empty string means every
 // commit reachable from HEAD.
 //
 // Where [ChangeLog] keeps only the subject line, this keeps the body too, so a
 // caller can read a footer such as "BREAKING CHANGE:".
+//
+// A commit with an empty message contributes no entry, so the result may be
+// shorter than the range and its indices do not track the commits.
 func Messages(ctx context.Context, repo, rng string) ([]string, error) {
 	if rng == "" {
 		rng = "HEAD"

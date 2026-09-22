@@ -27,7 +27,7 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 - **Repository inspection** — `IsRepo`, `IsEmpty`, `IsClean`,
   `WorkTreeStatus`, `ProjectName`, `ProjectOrigin`.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
-  `ClosestTag`, `Describe`, `ChangeLog`.
+  `ClosestTag`, `Describe`, `CountCommits`, `Messages`, `ChangeLog`.
 - **Mutations** — `Init`, `AddRemote`, `Add`, `AddAll`, `Commit`, `Tag`, `Push`.
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
