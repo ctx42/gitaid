@@ -1,3 +1,6 @@
+## v0.5.0 (Tue, 22 Sep 2026 13:20:29 UTC)
+- feat(gitaid)!: add Derive for ordered SemVer versions.
+
 ## v0.4.0 (Tue, 22 Sep 2026 11:14:45 UTC)
 - feat(gitaid): add WithMatch option, CountCommits and Messages.
 - fix(gitaid): ignore a nil Describe option.
