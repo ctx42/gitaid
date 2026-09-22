@@ -582,6 +582,24 @@ func Test_ClosestTag(t *testing.T) {
 		assert.Equal(t, "v0.1.0", tag)
 	})
 
+	t.Run("an untracked file makes the tree dirty", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "tag", "v0.1.0")
+		prj.CreateFileWith("stray", "untracked.txt")
+		prj.Close()
+
+		// --- When ---
+		tag, err := Describe(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.1.0-dirty", tag)
+	})
+
 	t.Run("one commit after tag and dirty work dir", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
@@ -698,7 +716,7 @@ func Test_Describe(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.0.0-1-g"+cm.Hash+"-dev", tag)
+		assert.Equal(t, "v0.0.0-1-g"+cm.Hash+"-dirty", tag)
 	})
 
 	t.Run("HEAD tagged", func(t *testing.T) {
@@ -792,7 +810,7 @@ func Test_Describe(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0-dev", tag)
+		assert.Equal(t, "v0.1.0-dirty", tag)
 	})
 
 	t.Run("one commit after tag and dirty work dir", func(t *testing.T) {
@@ -812,7 +830,7 @@ func Test_Describe(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, fmt.Sprintf("v0.1.0-1-g%s-dev", cm.Hash), tag)
+		assert.Equal(t, fmt.Sprintf("v0.1.0-1-g%s-dirty", cm.Hash), tag)
 	})
 
 	t.Run("match skips non-version tag", func(t *testing.T) {
@@ -899,7 +917,7 @@ func Test_describeNoTag(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.0.0-1-g"+cm.Hash+"-dev", have)
+		assert.Equal(t, "v0.0.0-1-g"+cm.Hash+"-dirty", have)
 	})
 
 	t.Run("error - empty git repo", func(t *testing.T) {
@@ -929,6 +947,230 @@ func Test_describeNoTag(t *testing.T) {
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
 		assert.Empty(t, have)
+	})
+}
+
+func Test_Derive(t *testing.T) {
+	t.Run("on the tag and clean is the release", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll("v0.4.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.4.0", have.Rev)
+		assert.Equal(t, "v0.4.0", have.Tag)
+		assert.Equal(t, cm.Hash, have.Hash)
+		assert.Equal(t, 0, have.Count)
+		assert.False(t, have.Dirty)
+		assert.True(t, have.Release)
+	})
+
+	t.Run("on the tag and dirty is a patch pre-release", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll("v0.4.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.4.1-dev.0.dirty+g"+cm.Hash, have.Rev)
+		assert.True(t, have.Dirty)
+		assert.False(t, have.Release)
+	})
+
+	t.Run("an untracked file is not a release", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll("v0.4.0")
+		prj.CreateFileWith("stray", "untracked.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.4.1-dev.0.dirty+g"+cm.Hash, have.Rev)
+		assert.False(t, have.Release)
+	})
+
+	t.Run("commits past the tag count", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.4.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.CreateFileWith("file0 3", "file0.txt")
+		cm := prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), BumpPatch)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.4.1-dev.2+g"+cm.Hash, have.Rev)
+		assert.Equal(t, 2, have.Count)
+	})
+
+	t.Run("a minor bump zeroes the patch", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.4.3")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		cm := prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), BumpMinor)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.5.0-dev.1+g"+cm.Hash, have.Rev)
+	})
+
+	t.Run("a major bump on 0.x advances the minor", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.4.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		cm := prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), BumpMajor)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.5.0-dev.1+g"+cm.Hash, have.Rev)
+	})
+
+	t.Run("a major bump on 1.x advances the major", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v1.4.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		cm := prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), BumpMajor)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v2.0.0-dev.1+g"+cm.Hash, have.Rev)
+	})
+
+	t.Run("a patch bump of a pre-release tag names its release", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v1.0.0-rc.1")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		cm := prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), BumpPatch)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.0.0-dev.1+g"+cm.Hash, have.Rev)
+	})
+
+	t.Run("no version tag builds up from the base", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		cm := prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.0.1-dev.2+g"+cm.Hash, have.Rev)
+		assert.Equal(t, noTagBase, have.Tag)
+		assert.False(t, have.Release)
+	})
+
+	t.Run("a tag that is not a version is skipped", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.4.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		cm := prj.GitCommit("nightly")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.4.1-dev.1+g"+cm.Hash, have.Rev)
+		assert.Equal(t, "v0.4.0", have.Tag)
+	})
+
+	t.Run("error - unknown bump", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.4.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "sideways")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadBump, err)
+		assert.Equal(t, Version{}, have)
+	})
+
+	t.Run("error - not a git repository", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Equal(t, Version{}, have)
 	})
 }
 
@@ -2121,7 +2363,7 @@ func Test_isSemVer(t *testing.T) {
 		{"build metadata", "v1.0.0+g9ab3d41", true},
 		{"pre-release and build", "v1.0.0-rc.1+g9ab3d41", true},
 		{"describe output", "v1.2.0-3-g9ab3d41", true},
-		{"describe output dirty", "v1.2.0-3-g9ab3d41-dev", true},
+		{"describe output dirty", "v1.2.0-3-g9ab3d41-dirty", true},
 		{"moving pointer", "nightly", false},
 		{"build stamp", "build-42", false},
 		{"hierarchical name", "rel/v1.0.0", false},
@@ -2151,49 +2393,35 @@ func Test_splitDescribe(t *testing.T) {
 		wTag  string
 		wCnt  string
 		wHash string
-		wDrt  bool
 		wOK   bool
 	}{
-		{"on tag", "v1.2.0-0-g9ab3d41", "v1.2.0", "0", "9ab3d41", false, true},
-		{
-			"on tag dirty",
-			"v1.2.0-0-g9ab3d41-dev", "v1.2.0", "0", "9ab3d41", true, true,
-		},
-		{
-			"past tag",
-			"v1.2.0-3-g9ab3d41", "v1.2.0", "3", "9ab3d41", false, true,
-		},
-		{
-			"past tag dirty",
-			"v1.2.0-3-g9ab3d41-dev", "v1.2.0", "3", "9ab3d41", true, true,
-		},
+		{"on tag", "v1.2.0-0-g9ab3d41", "v1.2.0", "0", "9ab3d41", true},
+		{"past tag", "v1.2.0-3-g9ab3d41", "v1.2.0", "3", "9ab3d41", true},
 		{
 			"tag holding a dash",
-			"rel-1.0-2-g9ab3d41", "rel-1.0", "2", "9ab3d41", false, true,
+			"rel-1.0-2-g9ab3d41", "rel-1.0", "2", "9ab3d41", true,
 		},
 		{
 			"tag holding -g",
-			"v1.0.0-gamma-2-g9ab3d41", "v1.0.0-gamma", "2", "9ab3d41",
-			false, true,
+			"v1.0.0-gamma-2-g9ab3d41", "v1.0.0-gamma", "2", "9ab3d41", true,
 		},
-		{"no hash marker", "v1.2.0", "", "", "", false, false},
-		{"no count field", "v1.2.0-g9ab3d41", "", "", "", false, false},
-		{"hash not hex", "v1.2.0-3-gzzzzzzz", "", "", "", false, false},
-		{"count not a number", "v1.2.0-x-g9ab3d41", "", "", "", false, false},
-		{"no tag part", "-3-g9ab3d41", "", "", "", false, false},
+		{"no hash marker", "v1.2.0", "", "", "", false},
+		{"no count field", "v1.2.0-g9ab3d41", "", "", "", false},
+		{"hash not hex", "v1.2.0-3-gzzzzzzz", "", "", "", false},
+		{"count not a number", "v1.2.0-x-g9ab3d41", "", "", "", false},
+		{"no tag part", "-3-g9ab3d41", "", "", "", false},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.testN, func(t *testing.T) {
 			// --- When ---
-			tag, cnt, hash, dirty, ok := splitDescribe(tc.desc)
+			tag, cnt, hash, ok := splitDescribe(tc.desc)
 
 			// --- Then ---
 			assert.Equal(t, tc.wOK, ok)
 			assert.Equal(t, tc.wTag, tag)
 			assert.Equal(t, tc.wCnt, cnt)
 			assert.Equal(t, tc.wHash, hash)
-			assert.Equal(t, tc.wDrt, dirty)
 		})
 	}
 }

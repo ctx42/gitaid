@@ -16,20 +16,20 @@ has moved past it, and which commit that is. Every result is a valid SemVer
 2.0 version.
 
 ```
-<tag>[-<count>-g<hash>][-dev]
+<tag>[-<count>-g<hash>][-dirty]
 ```
 
 The tag stands alone only when HEAD sits exactly on it and nothing is
 modified. Starting from `v0.4.0`, on commit `7f93fb4`:
 
-| Git state                     | `Describe` result        |
-| ----------------------------- | ------------------------ |
-| On the tag, clean             | `v0.4.0`                 |
-| On the tag, dirty             | `v0.4.0-dev`             |
-| 3 commits past the tag, clean | `v0.4.0-3-g7f93fb4`      |
-| 3 commits past the tag, dirty | `v0.4.0-3-g7f93fb4-dev`  |
-| No usable tag, clean          | `v0.0.0-12-g7f93fb4`     |
-| No usable tag, dirty          | `v0.0.0-12-g7f93fb4-dev` |
+| Git state                     | `Describe` result          |
+| ----------------------------- | -------------------------- |
+| On the tag, clean             | `v0.4.0`                   |
+| On the tag, dirty             | `v0.4.0-dirty`             |
+| 3 commits past the tag, clean | `v0.4.0-3-g7f93fb4`        |
+| 3 commits past the tag, dirty | `v0.4.0-3-g7f93fb4-dirty`  |
+| No usable tag, clean          | `v0.0.0-12-g7f93fb4`       |
+| No usable tag, dirty          | `v0.0.0-12-g7f93fb4-dirty` |
 
 `Describe` never returns a bare hash and never reports `ErrNoTags`. It
 returns `ErrEmptyRepo` for a repository without commits and `ErrNotRepo` for
@@ -42,9 +42,9 @@ SemVer §9 allows a hyphen inside a pre-release identifier - the grammar reads
 alphanumerics and hyphens `[0-9A-Za-z-]`". Only the *first* hyphen after the
 version core is structural; every later one is an ordinary character.
 
-So `v0.4.0-3-g7f93fb4-dev` parses as the core `0.4.0` plus one alphanumeric
-pre-release identifier, `3-g7f93fb4-dev`. The count, the hash and the `dev`
-marker never need a separator of their own.
+So `v0.4.0-3-g7f93fb4-dirty` parses as the core `0.4.0` plus one alphanumeric
+pre-release identifier, `3-g7f93fb4-dirty`. The count, the hash and the
+`dirty` marker never need a separator of their own.
 
 When the tag already carries a pre-release the same parts extend its last
 identifier instead: `v1.0.0-rc.1-1-g7f93fb4` is `rc` and `1-1-g7f93fb4`.
@@ -102,14 +102,21 @@ the only thing there is to count.
 
 ## What counts as dirty
 
-A tracked file that differs from HEAD, staged or not. Untracked files are
-ignored on purpose: an editor swap file or a stray build artefact must not
-change the version.
+Anything `git status --porcelain` reports: a tracked file that differs from
+HEAD, staged or not, **and** an untracked file. That is [IsClean]'s rule, and
+it is the only one used - see [IsClean].
 
-That is `git describe --dirty`'s own rule. The fallback path does not go
-through `git describe`, so it checks
-`git status --porcelain --untracked-files=no` instead - the two paths have to
-agree on what a dirty tree is.
+[IsClean]: https://pkg.go.dev/github.com/ctx42/gitaid/pkg/gitaid#IsClean
+
+Untracked files count because nothing here can tell new source the build
+needs from a stray log, and guessing the wrong way silently mislabels a build
+as reproducible. Keeping build artefacts in ignored directories is the
+project's job, and a `.gitignore` states that intent where a heuristic cannot.
+
+This is why `--dirty` is not passed to `git describe`: it diffs the index
+against HEAD and cannot see untracked files. The marker is appended by
+`Describe` itself, from the same [IsClean] call the no-tag path uses, so the
+two cannot drift.
 
 ## What the ordering does and does not promise
 
@@ -120,13 +127,13 @@ three things go wrong if they are used as one. Verified with both
 
 ```
 v0.0.0-12-g7f93fb4  <  v0.4.0-10-g7f93fb4  <  v0.4.0-3-g7f93fb4
-                    <  v0.4.0-3-g7f93fb4-dev  <  v0.4.0-dev  <  v0.4.0
+                    <  v0.4.0-3-g7f93fb4-dirty  <  v0.4.0-dirty  <  v0.4.0
 ```
 
 **A description of a commit past a tag sorts below that tag.** SemVer §9
 ranks any pre-release below its normal version, so `v0.4.0-3-g7f93fb4` <
 `v0.4.0`: a develop build claims to be older than the release it was built
-on top of. The dirty on-tag form `v0.4.0-dev` has the same problem.
+on top of. The dirty on-tag form `v0.4.0-dirty` has the same problem.
 
 The one exception is a tag that is itself a pre-release: §11 ranks a numeric
 identifier below an alphanumeric one, so `v1.0.0-rc.1` <
@@ -142,40 +149,56 @@ with more than nine commits since its last tag has this.
 builds at the same distance on different branches order by whatever their
 hashes happen to spell.
 
-Only the dirty marker behaves: `-dev` extends the identifier with a common
+Only the dirty marker behaves: `-dirty` extends the identifier with a common
 prefix, so a dirty tree sorts above the clean commit it was built from.
 
-## Why this is not fixed here
+## The ordered form: `Derive`
 
 All three follow from packing the count and the hash into one pre-release
 identifier, which is what `git describe` does. `Describe` is a wrapper around
-that command, and the output shape is the reason it is recognisable.
+that command, and the output shape is the reason it is recognisable, so it
+keeps it. [Derive] builds the ordered string instead:
 
-Separating the parts with `.` would fix the count - `dev.10` outranks `dev.3`
-because §11 compares numeric identifiers numerically - but not the hash,
-which would still be a pre-release identifier and still order arbitrarily.
-The hash has to move behind `+` to be ignored (§10), and the version has to
-name the *next* release rather than the last one before a develop build can
-outrank the release it descends from. That last step is a policy decision -
-patch, minor or major - that cannot be read off the repository alone.
-
-So a correctly ordered version is a different string, built from the same
-facts:
+[Derive]: https://pkg.go.dev/github.com/ctx42/gitaid/pkg/gitaid#Derive
 
 ```
 v0.4.1-dev.3.dirty+g7f93fb4
 ```
 
-`Describe`, `CountCommits` and `Messages` supply the tag, the distance and
-the commit subjects that scheme needs; choosing the successor and assembling
-the string is the consumer's job, not this library's.
+Three changes, one per problem above. The count becomes an identifier of its
+own, so §11 compares it numerically and `dev.10` outranks `dev.3`. The hash
+moves behind `+`, where §10 ignores it. And the tag is **bumped first**, so
+the version names the release it heads towards rather than the one it
+descends from - which is what lets a development build outrank its base.
+
+A release - a clean tree exactly on a considered tag - stays the bare tag.
+
+Which bump the range deserves is the one part that cannot be read off the
+repository: `patch`, `minor` and `major` are a project's own policy. `Derive`
+takes it as an argument and defaults to `patch`, because guessing low leaves
+a gap nobody fills where guessing high publishes a version that outranks a
+real release. Read it off the commits with [Messages] if the project uses
+Conventional Commits, or take it from configuration.
+
+[Messages]: https://pkg.go.dev/github.com/ctx42/gitaid/pkg/gitaid#Messages
+
+Note the two words in that string, because the ctx42 modules keep them
+distinct everywhere:
+
+| Word    | Means                                                  |
+|---------|--------------------------------------------------------|
+| `dev`   | a development build - anything that is not a release   |
+| `dirty` | the working tree had outstanding changes when it built |
+
+`Describe` only ever reports the second, which is why its marker is `-dirty`
+and not `-dev`; `dev` appears only in what `Derive` assembles.
 
 ## Parsing a result
 
 Prefer not to. When it is unavoidable, work from the right, because a tag may
 itself contain `-`, and may even contain `-g`:
 
-1. Strip a trailing `-dev`; its presence is the dirty flag.
+1. Strip a trailing `-dirty`; its presence is the dirty flag.
 2. Split at the last `-g`. The remainder is the short hash - check it is
    hex, because a tag like `v1.0.0-gamma` contains `-g` too.
 3. Split what is left at the last `-`. The remainder is the count - check it
@@ -185,4 +208,4 @@ itself contain `-`, and may even contain `-g`:
    whole string is the tag and there is no count or hash.
 
 A count of `0` never appears in a result; that case is rendered as the bare
-tag, or as `<tag>-dev`.
+tag, or as `<tag>-dirty`.

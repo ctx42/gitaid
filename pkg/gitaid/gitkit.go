@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 // Git related errors.
@@ -217,24 +219,68 @@ func WithMatch(glob string) DescribeOpt {
 	return func(cfg *describeCfg) { cfg.match = glob }
 }
 
+// The words a version built here carries. They mean the same thing in every
+// module that reads one, so none of them is ever spelled two ways.
+const (
+	// StateClean is the state of a working tree with nothing outstanding.
+	StateClean = "clean"
+
+	// StateDirty is the state of a working tree with outstanding changes,
+	// untracked files included. See [IsClean] for what counts.
+	StateDirty = "dirty"
+
+	// LabelDev is the first pre-release identifier [Derive] gives a version
+	// that is not a release. It marks a development build, which is a
+	// different thing from [StateDirty]: a build may be either, both or
+	// neither.
+	LabelDev = "dev"
+)
+
+// MatchSemVer is the tag glob that keeps a name which is not a version - a
+// date stamp, a moving pointer - from being taken for a release. It is the
+// match [Derive] uses unless [WithMatch] overrides it, and the one a project
+// tagging anything besides releases wants for [Describe].
+const MatchSemVer = "v[0-9]*.[0-9]*.[0-9]*"
+
+// Bump levels [Derive] advances the described tag by.
+const (
+	// BumpPatch advances the patch version. It is the level [Derive] uses
+	// for an empty bump, because guessing low leaves a gap nobody fills
+	// where guessing high publishes a version outranking a real release.
+	BumpPatch = "patch"
+
+	// BumpMinor advances the minor version and zeroes the patch.
+	BumpMinor = "minor"
+
+	// BumpMajor advances the major version and zeroes the minor and patch.
+	BumpMajor = "major"
+)
+
+// ErrBadBump is returned when a bump level names none of [BumpPatch],
+// [BumpMinor], or [BumpMajor].
+var ErrBadBump = errors.New("unknown version bump")
+
+// dirtyMark is what [Describe] appends when the working tree is not clean.
+// It is git's own default for "describe --dirty".
+const dirtyMark = "-" + StateDirty
+
 // noTagBase is the tag [Describe] describes against when no considered tag is
 // a version. Git would answer with the bare short hash, or with a tag that is
 // not a version at all; the lowest possible release keeps the result SemVer
 // and keeps it sorting below every real tag.
 const noTagBase = "v0.0.0"
 
-// semVerRx matches a SemVer 2.0 version, with the leading "v" git tags
-// conventionally carry made optional.
-var semVerRx = regexp.MustCompile(
-	`^v?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)` +
-		`(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)` +
-		`(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?` +
-		`(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$`,
-)
-
 // isSemVer returns true if s is a SemVer 2.0 version, with or without the
-// leading "v".
-func isSemVer(s string) bool { return semVerRx.MatchString(s) }
+// leading "v" git tags conventionally carry.
+//
+// It parses with [semver.StrictNewVersion] rather than [semver.NewVersion],
+// because the latter is deliberately lenient: it reads "v1.2" as 1.2.0 and
+// the date stamp "2026-01-15" as 2026.0.0-01-15, and a tag that is not a
+// version has to be rejected here, not coerced into one.
+func isSemVer(s string) bool {
+	_, err := semver.StrictNewVersion(strings.TrimPrefix(s, "v"))
+	return err == nil
+}
 
 // Describe returns a human-readable name for the current state of the
 // repository, always as a valid SemVer 2.0 version. The empty string used for
@@ -243,8 +289,14 @@ func isSemVer(s string) bool { return semVerRx.MatchString(s) }
 // When HEAD sits exactly on a considered tag the result is that tag alone.
 // Otherwise it is the closest considered tag, the number of commits made since
 // it, and the short HEAD hash, in the "<tag>-<count>-g<hash>" form. A dirty
-// working tree appends "-dev". Both annotated and lightweight tags count, and
-// the tag is rendered verbatim, so a leading "v" is kept.
+// working tree appends "-dirty". Both annotated and lightweight tags count,
+// and the tag is rendered verbatim, so a leading "v" is kept.
+//
+// A tree is dirty when "git status --porcelain" reports anything at all,
+// untracked files included - see [IsClean]. An untracked file may be source
+// the build needs just as easily as a stray log, and nothing here can tell
+// the two apart; keeping build artefacts in ignored directories is the
+// project's job.
 //
 // The count, the hash and the "dev" marker land in a single alphanumeric
 // pre-release identifier, so the result is a version the whole way down. Note
@@ -267,7 +319,7 @@ func isSemVer(s string) bool { return semVerRx.MatchString(s) }
 //
 // Every tag is considered unless [WithMatch] narrows them to a glob. Because
 // the output shape varies, and because a tag name may itself contain "-", a
-// caller that parses the result strips the optional "-dev" suffix first, then
+// caller that parses the result strips the optional "-dirty" suffix first, then
 // tests for the "-<count>-g" infix and splits from the right.
 //
 // Examples:
@@ -279,10 +331,10 @@ func isSemVer(s string) bool { return semVerRx.MatchString(s) }
 //	Describe(ctx, repo) // "v1.2.0-3-g9ab3d41"
 //
 //	// The working tree has uncommitted changes.
-//	Describe(ctx, repo) // "v0.1.0-dev"
+//	Describe(ctx, repo) // "v0.1.0-dirty"
 //
 //	// Both: one commit since the tag, and a dirty working tree.
-//	Describe(ctx, repo) // "v0.1.0-1-g9ab3d41-dev"
+//	Describe(ctx, repo) // "v0.1.0-1-g9ab3d41-dirty"
 //
 //	// The lightweight tag "nightly" is closer to HEAD than "v0.1.0". It
 //	// is not a version, so it counts as no tag and "v0.1.0" is not
@@ -317,7 +369,11 @@ func Describe(
 	// --long renders "<tag>-<count>-g<hash>" even when the count is zero, so
 	// one parse covers both the on-tag and the past-the-tag case, and a tag
 	// holding "-" stays unambiguous. The short forms are rebuilt below.
-	args := []string{"describe", "--long", "--tags", "--dirty=-dev"}
+	//
+	// --dirty is not passed: it diffs the index against HEAD and cannot see
+	// untracked files, which count here. [IsClean] is the one definition, so
+	// the marker is appended below instead.
+	args := []string{"describe", "--long", "--tags"}
 	if cfg.match != "" {
 		args = append(args, "--match", cfg.match)
 	}
@@ -329,47 +385,49 @@ func Describe(
 		return describeNoTag(ctx, repo)
 	}
 
-	tag, cnt, hash, dirty, ok := splitDescribe(rev)
+	tag, cnt, hash, ok := splitDescribe(rev)
 	if !ok || !isSemVer(tag) {
 		return describeNoTag(ctx, repo)
 	}
+
+	clean, err := IsClean(ctx, repo)
+	if err != nil {
+		return "", err
+	}
 	if cnt == "0" {
-		if dirty {
-			return tag + "-dev", nil
+		if !clean {
+			return tag + dirtyMark, nil
 		}
 		return tag, nil
 	}
 	rev = tag + "-" + cnt + "-g" + hash
-	if dirty {
-		rev += "-dev"
+	if !clean {
+		rev += dirtyMark
 	}
 	return rev, nil
 }
 
-// splitDescribe takes the output of "git describe --long --dirty=-dev" and
-// splits it into the tag, the commit count, the short hash and the dirty
-// flag. It reports false when desc does not have that shape.
-func splitDescribe(desc string) (tag, cnt, hash string, dirty, ok bool) {
-	if s, found := strings.CutSuffix(desc, "-dev"); found {
-		desc, dirty = s, true
-	}
+// splitDescribe takes the output of "git describe --long" and splits it into
+// the tag, the commit count and the short hash. It reports false when desc
+// does not have that shape.
+func splitDescribe(desc string) (tag, cnt, hash string, ok bool) {
 	// The tag may itself hold "-g", so the split works from the right.
 	i := strings.LastIndex(desc, "-g")
 	if i < 0 {
-		return "", "", "", false, false
+		return "", "", "", false
 	}
 	hash, desc = desc[i+2:], desc[:i]
 	if !IsHash(hash) {
-		return "", "", "", false, false
+		return "", "", "", false
 	}
 	if i = strings.LastIndex(desc, "-"); i < 0 {
-		return "", "", "", false, false
+		return "", "", "", false
 	}
 	cnt, tag = desc[i+1:], desc[:i]
 	if cnt == "" || strings.TrimLeft(cnt, "0123456789") != "" || tag == "" {
-		return "", "", "", false, false
+		return "", "", "", false
 	}
-	return tag, cnt, hash, dirty, true
+	return tag, cnt, hash, true
 }
 
 // describeNoTag builds the [Describe] result for a repository where no
@@ -396,17 +454,160 @@ func describeNoTag(ctx context.Context, repo string) (string, error) {
 	}
 	rev := fmt.Sprintf("%s-%d-g%s", noTagBase, cnt, hash)
 
-	// Untracked files are excluded because that is what "--dirty" ignores,
-	// and the two paths must agree on what a dirty tree is.
-	args := []string{"status", "--porcelain", "--untracked-files=no"}
-	sout, err := runGitCmd(ctx, repo, args...)
+	clean, err := IsClean(ctx, repo)
 	if err != nil {
 		return "", err
 	}
-	if sout != "" {
-		rev += "-dev"
+	if !clean {
+		rev += dirtyMark
 	}
 	return rev, nil
+}
+
+// Version is the state of a repository rendered as a SemVer 2.0 version that
+// orders correctly against the releases it descends from. [Derive] builds it.
+type Version struct {
+	// The version itself: the tag verbatim when Release is true, and the
+	// assembled development version otherwise.
+	//
+	// Example: v0.4.1-dev.3.dirty+g7f93fb4
+	Rev string
+
+	// Tag the repository was described against, verbatim.
+	//
+	// Example: v0.4.0
+	Tag string
+
+	// Short commit hash HEAD points at.
+	//
+	// Example: 7f93fb4
+	Hash string
+
+	// Commits made since Tag.
+	Count int
+
+	// Dirty reports whether the working tree had outstanding changes. See
+	// [IsClean] for what counts.
+	Dirty bool
+
+	// Release reports whether HEAD is a clean checkout sitting exactly on
+	// Tag - the one state whose version is the tag itself.
+	Release bool
+}
+
+// Derive returns the [Version] of the repository at repo. The empty string
+// used for repo means the current working directory.
+//
+// A release - a clean tree sitting exactly on a considered tag - is that tag
+// and nothing else. Every other state is a pre-release of the release the
+// bump names, so that a development build sorts above the release it
+// descends from and below the one it heads towards:
+//
+//	<bumped tag>-dev.<count>[.dirty]+g<hash>
+//
+// This is the form [Describe] cannot produce. Its own output packs the count
+// and the hash into one pre-release identifier, which SemVer then ranks below
+// the tag and compares as text; see docs/versioning.md. Here the count is an
+// identifier of its own so it compares numerically, the hash moves behind "+"
+// where ordering ignores it, and the tag is bumped first so the result
+// outranks the release it was built on.
+//
+// The bump is one of [BumpPatch], [BumpMinor] or [BumpMajor]; an empty string
+// means [BumpPatch]. Which one a commit range deserves is a policy this
+// package does not decide - read it off the commits with [Messages], or take
+// it from configuration. Advancing a pre-release tag by a patch lands on the
+// release that tag heads towards, so v1.0.0-rc.1 becomes v1.0.0.
+//
+// Tags are restricted to [MatchSemVer] unless [WithMatch] says otherwise. It
+// returns [ErrBadBump] for an unknown bump, and what [Describe] returns for a
+// repository it cannot describe.
+func Derive(
+	ctx context.Context,
+	repo, bump string,
+	opts ...DescribeOpt,
+) (Version, error) {
+
+	var ver Version
+	var err error
+
+	if ver.Hash, err = LatestHash(ctx, repo); err != nil {
+		return Version{}, err
+	}
+
+	opts = append([]DescribeOpt{WithMatch(MatchSemVer)}, opts...)
+	desc, err := Describe(ctx, repo, opts...)
+	if err != nil {
+		return Version{}, err
+	}
+	ver.Tag, ver.Count, ver.Dirty = splitVersion(desc)
+
+	base, err := semver.NewVersion(ver.Tag)
+	if err != nil {
+		return Version{}, fmt.Errorf("%s: %w", ver.Tag, err)
+	}
+	if ver.Count == 0 && !ver.Dirty {
+		ver.Rev, ver.Release = base.Original(), true
+		return ver, nil
+	}
+
+	next, err := bumped(base, bump)
+	if err != nil {
+		return Version{}, err
+	}
+	pre := fmt.Sprintf("%s.%d", LabelDev, ver.Count)
+	if ver.Dirty {
+		pre += "." + StateDirty
+	}
+	if next, err = next.SetPrerelease(pre); err != nil {
+		return Version{}, err
+	}
+	if next, err = next.SetMetadata("g" + ver.Hash); err != nil {
+		return Version{}, err
+	}
+	ver.Rev = next.Original()
+	return ver, nil
+}
+
+// splitVersion takes what [Describe] returned and splits it into the tag it
+// described against, the commits since that tag, and the dirty flag. It is
+// the parsing recipe from docs/versioning.md: strip the marker, then split
+// from the right, because a tag may itself hold "-" and even "-g".
+func splitVersion(desc string) (tag string, count int, dirty bool) {
+	if rest, found := strings.CutSuffix(desc, dirtyMark); found {
+		desc, dirty = rest, true
+	}
+	tagPart, cnt, _, ok := splitDescribe(desc)
+	if !ok {
+		return desc, 0, dirty
+	}
+	count, err := strconv.Atoi(cnt)
+	if err != nil {
+		return desc, 0, dirty
+	}
+	return tagPart, count, dirty
+}
+
+// bumped returns the release base advances to by one bump level. On a 0.x
+// version a major bump advances the minor instead: SemVer leaves 0.y.z
+// explicitly unstable, and a project is not declaring 1.0.0 by writing one
+// breaking change.
+func bumped(base *semver.Version, bump string) (semver.Version, error) {
+	if base.Major() == 0 && bump == BumpMajor {
+		bump = BumpMinor
+	}
+	switch bump {
+	case BumpMajor:
+		return base.IncMajor(), nil
+
+	case BumpMinor:
+		return base.IncMinor(), nil
+
+	case BumpPatch, "":
+		return base.IncPatch(), nil
+
+	default:
+		return semver.Version{}, fmt.Errorf("%s: %w", bump, ErrBadBump)
+	}
 }
 
 // CountCommits returns the number of commits reachable from rev. The empty
@@ -517,16 +718,17 @@ func IsClean(ctx context.Context, repo string) (bool, error) {
 	return sout == "", nil
 }
 
-// WorkTreeStatus returns working tree status: `clean` or `dirty`.
+// WorkTreeStatus returns the working tree status: [StateClean] or
+// [StateDirty].
 func WorkTreeStatus(ctx context.Context, repo string) (string, error) {
 	clean, err := IsClean(ctx, repo)
 	if err != nil {
 		return "", err
 	}
 	if clean {
-		return "clean", nil
+		return StateClean, nil
 	}
-	return "dirty", nil
+	return StateDirty, nil
 }
 
 // Add adds files to the index.

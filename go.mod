@@ -7,4 +7,7 @@ require (
 	github.com/ctx42/testkit v0.14.0
 )
 
-require github.com/ctx42/xdef v0.9.0 // indirect
+require (
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/ctx42/xdef v0.9.0 // indirect
+)

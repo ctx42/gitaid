@@ -27,9 +27,10 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 - **Repository inspection** — `IsRepo`, `IsEmpty`, `IsClean`,
   `WorkTreeStatus`, `ProjectName`, `ProjectOrigin`.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
-  `ClosestTag`, `Describe`, `CountCommits`, `Messages`, `ChangeLog`.
-  `Describe` always returns a valid SemVer 2.0 version — see
-  [docs/versioning.md](docs/versioning.md).
+  `ClosestTag`, `Describe`, `Derive`, `CountCommits`, `Messages`,
+  `ChangeLog`. `Describe` always returns a valid SemVer 2.0 version, and
+  `Derive` builds the one that also *orders* correctly against the releases
+  it descends from — see [docs/versioning.md](docs/versioning.md).
 - **Mutations** — `Init`, `AddRemote`, `Add`, `AddAll`, `Commit`, `Tag`, `Push`.
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
@@ -85,7 +86,7 @@ ctx := context.Background()
 // The empty string means the current working directory. Always a valid
 // SemVer: the closest version tag alone ("v1.2.0"), or with the
 // distance from HEAD ("v1.2.0-3-g9ab3d41"); a dirty tree appends
-// "-dev". With no version tag reachable the distance is counted from
+// "-dirty". With no version tag reachable the distance is counted from
 // "v0.0.0".
 name, err := gitaid.Describe(ctx, "")
 if err != nil {
