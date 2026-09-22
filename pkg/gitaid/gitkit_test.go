@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ctx42/testing/pkg/assert"
+	"github.com/ctx42/testing/pkg/must"
 	"github.com/ctx42/testkit/pkg/iokit"
 	"github.com/ctx42/testkit/pkg/oskit"
 	"github.com/ctx42/testkit/pkg/prjkit"
@@ -861,6 +863,72 @@ func Test_Describe(t *testing.T) {
 		// --- Then ---
 		assert.NoError(t, err)
 		assert.Equal(t, "v0.1.0", have)
+	})
+}
+
+func Test_describeNoTag(t *testing.T) {
+	t.Run("counts every commit from the synthetic tag", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		cm := prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := describeNoTag(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.0.0-2-g"+cm.Hash, have)
+	})
+
+	t.Run("dirty work dir", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll()
+		prj.CreateFileWith("edit", "file0.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := describeNoTag(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.0.0-1-g"+cm.Hash+"-dev", have)
+	})
+
+	t.Run("error - empty git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Close()
+
+		// --- When ---
+		have, err := describeNoTag(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrEmptyRepo, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := describeNoTag(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
 	})
 }
 
@@ -1767,6 +1835,24 @@ func Test_GetFile(t *testing.T) {
 		assert.ErrorIs(t, context.DeadlineExceeded, err)
 		assert.NoFileExist(t, dst)
 	})
+
+	t.Run("error - tar not on PATH", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		// A PATH holding git alone makes looking up tar fail.
+		binDir := t.TempDir()
+		gitBin := must.Value(exec.LookPath("git"))
+		must.Nil(os.Symlink(gitBin, filepath.Join(binDir, "git")))
+		t.Setenv("PATH", binDir)
+		dst := filepath.Join(t.TempDir(), "from-remote.txt")
+
+		// --- When ---
+		err := GetFile(ctx, bare, branch, "file0.txt", dst)
+
+		// --- Then ---
+		assert.ErrorIs(t, exec.ErrNotFound, err)
+		assert.NoFileExist(t, dst)
+	})
 }
 
 func Test_IsHash_tabular(t *testing.T) {
@@ -1783,6 +1869,40 @@ func Test_IsHash_tabular(t *testing.T) {
 			assert.Equal(t, tc.want, IsHash(tc.in))
 		})
 	}
+}
+
+func Test_runGitCmd(t *testing.T) {
+	t.Run("standard output trimmed", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+		repo := prj.Root()
+
+		// --- When ---
+		have, err := runGitCmd(ctx, repo, "rev-parse", "--git-dir")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, ".git", have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+		repo := prj.Root()
+
+		// --- When ---
+		have, err := runGitCmd(ctx, repo, "rev-parse", "--git-dir")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
 }
 
 func Test_firstLine(t *testing.T) {
@@ -2057,6 +2177,7 @@ func Test_splitDescribe(t *testing.T) {
 			false, true,
 		},
 		{"no hash marker", "v1.2.0", "", "", "", false, false},
+		{"no count field", "v1.2.0-g9ab3d41", "", "", "", false, false},
 		{"hash not hex", "v1.2.0-3-gzzzzzzz", "", "", "", false, false},
 		{"count not a number", "v1.2.0-x-g9ab3d41", "", "", "", false, false},
 		{"no tag part", "-3-g9ab3d41", "", "", "", false, false},
