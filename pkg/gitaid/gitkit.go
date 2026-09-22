@@ -217,9 +217,28 @@ func WithMatch(glob string) DescribeOpt {
 	return func(cfg *describeCfg) { cfg.match = glob }
 }
 
+// noTagBase is the tag [Describe] describes against when no considered tag is
+// a version. Git would answer with the bare short hash, or with a tag that is
+// not a version at all; the lowest possible release keeps the result SemVer
+// and keeps it sorting below every real tag.
+const noTagBase = "v0.0.0"
+
+// semVerRx matches a SemVer 2.0 version, with the leading "v" git tags
+// conventionally carry made optional.
+var semVerRx = regexp.MustCompile(
+	`^v?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)` +
+		`(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)` +
+		`(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?` +
+		`(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$`,
+)
+
+// isSemVer returns true if s is a SemVer 2.0 version, with or without the
+// leading "v".
+func isSemVer(s string) bool { return semVerRx.MatchString(s) }
+
 // Describe returns a human-readable name for the current state of the
-// repository. The empty string used for repo means the current working
-// directory.
+// repository, always as a valid SemVer 2.0 version. The empty string used for
+// repo means the current working directory.
 //
 // When HEAD sits exactly on a considered tag the result is that tag alone.
 // Otherwise it is the closest considered tag, the number of commits made since
@@ -227,10 +246,29 @@ func WithMatch(glob string) DescribeOpt {
 // working tree appends "-dev". Both annotated and lightweight tags count, and
 // the tag is rendered verbatim, so a leading "v" is kept.
 //
+// The count, the hash and the "dev" marker land in a single alphanumeric
+// pre-release identifier, so the result is a version the whole way down. Note
+// that SemVer ranks a pre-release below its normal version, so a description
+// of a commit past a tag sorts below that tag; a caller that needs a develop
+// build to outrank the release it descends from bumps the tag first and
+// describes against the successor.
+//
+// The closest considered tag has to be a version itself. When it is not - a
+// tag like "nightly", "build-42" or "rel/2026-01" - it is treated as no tag
+// at all rather than rendered verbatim. Note that this does not reach past it
+// to an older version tag; git picks the closest tag and the check only
+// accepts or rejects that one. Use [WithMatch] to make git skip the names
+// that are not versions in the first place.
+//
+// When no considered tag is usable - the repository has none, the closest one
+// is not a version, or none matches the glob - the same form is built against
+// the synthetic tag "v0.0.0", counting every commit reachable from HEAD. So
+// the result is never a bare hash, and [ErrNoTags] is never reported.
+//
 // Every tag is considered unless [WithMatch] narrows them to a glob. Because
-// the output shape varies, and because a tag name may itself contain "-" and
-// "/", a caller that parses the result tests for the "-<count>-g" infix and
-// splits from the right.
+// the output shape varies, and because a tag name may itself contain "-", a
+// caller that parses the result strips the optional "-dev" suffix first, then
+// tests for the "-<count>-g" infix and splits from the right.
 //
 // Examples:
 //
@@ -243,25 +281,23 @@ func WithMatch(glob string) DescribeOpt {
 //	// The working tree has uncommitted changes.
 //	Describe(ctx, repo) // "v0.1.0-dev"
 //
-//	// The lightweight tag "nightly" is closer to HEAD than "v0.1.0".
-//	Describe(ctx, repo) // "nightly-1-g7b27033"
+//	// Both: one commit since the tag, and a dirty working tree.
+//	Describe(ctx, repo) // "v0.1.0-1-g9ab3d41-dev"
 //
-//	// The same state, but the glob skips "nightly"; the count still
-//	// spans the commit "nightly" points at.
+//	// The lightweight tag "nightly" is closer to HEAD than "v0.1.0". It
+//	// is not a version, so it counts as no tag and "v0.1.0" is not
+//	// reached for - every commit is counted from "v0.0.0" instead.
+//	Describe(ctx, repo) // "v0.0.0-4-g7b27033"
+//
+//	// The same state, but the glob makes git skip "nightly" outright; the
+//	// count still spans the commit "nightly" points at.
 //	Describe(ctx, repo, WithMatch("v[0-9]*")) // "v0.1.0-2-g7b27033"
 //
-//	// The closest matching tag has a hierarchical name.
-//	Describe(ctx, repo, WithMatch("rel/*")) // "rel/v1.0.0-1-g96b2af8"
+//	// No tag is reachable at all - four commits describe against "v0.0.0".
+//	Describe(ctx, repo) // "v0.0.0-4-ge11e688"
 //
-//	// No tag is reachable at all - the short hash stands alone.
-//	Describe(ctx, repo) // "e11e688"
-//
-//	// A tag exists, but the glob matches none - the same fallback.
-//	Describe(ctx, repo, WithMatch("rel-*")) // "e11e688"
-//
-// It falls back to the bare short hash when no tag is reachable - because the
-// repository has none, or because none matches the glob - so it never reports
-// [ErrNoTags].
+//	// A version tag exists, but the glob matches none - the same fallback.
+//	Describe(ctx, repo, WithMatch("v9.*")) // "v0.0.0-4-ge11e688"
 //
 // It returns [ErrEmptyRepo] when the repository has no commits, and
 // [ErrNotRepo] when repo is not a git repository.
@@ -278,13 +314,97 @@ func Describe(
 		}
 	}
 
-	args := []string{"describe", "--tags", "--always", "--dirty=-dev"}
+	// --long renders "<tag>-<count>-g<hash>" even when the count is zero, so
+	// one parse covers both the on-tag and the past-the-tag case, and a tag
+	// holding "-" stays unambiguous. The short forms are rebuilt below.
+	args := []string{"describe", "--long", "--tags", "--dirty=-dev"}
 	if cfg.match != "" {
 		args = append(args, "--match", cfg.match)
 	}
 	rev, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
+		if !errors.Is(err, ErrNoTags) {
+			return "", err
+		}
+		return describeNoTag(ctx, repo)
+	}
+
+	tag, cnt, hash, dirty, ok := splitDescribe(rev)
+	if !ok || !isSemVer(tag) {
+		return describeNoTag(ctx, repo)
+	}
+	if cnt == "0" {
+		if dirty {
+			return tag + "-dev", nil
+		}
+		return tag, nil
+	}
+	rev = tag + "-" + cnt + "-g" + hash
+	if dirty {
+		rev += "-dev"
+	}
+	return rev, nil
+}
+
+// splitDescribe takes the output of "git describe --long --dirty=-dev" and
+// splits it into the tag, the commit count, the short hash and the dirty
+// flag. It reports false when desc does not have that shape.
+func splitDescribe(desc string) (tag, cnt, hash string, dirty, ok bool) {
+	if s, found := strings.CutSuffix(desc, "-dev"); found {
+		desc, dirty = s, true
+	}
+	// The tag may itself hold "-g", so the split works from the right.
+	i := strings.LastIndex(desc, "-g")
+	if i < 0 {
+		return "", "", "", false, false
+	}
+	hash, desc = desc[i+2:], desc[:i]
+	if !IsHash(hash) {
+		return "", "", "", false, false
+	}
+	if i = strings.LastIndex(desc, "-"); i < 0 {
+		return "", "", "", false, false
+	}
+	cnt, tag = desc[i+1:], desc[:i]
+	if cnt == "" || strings.TrimLeft(cnt, "0123456789") != "" || tag == "" {
+		return "", "", "", false, false
+	}
+	return tag, cnt, hash, dirty, true
+}
+
+// describeNoTag builds the [Describe] result for a repository where no
+// considered tag is a version, describing HEAD against noTagBase.
+func describeNoTag(ctx context.Context, repo string) (string, error) {
+	// Git answers "No names found, cannot describe anything" both for a
+	// repository without commits and for one without tags, so "--always" is
+	// not passed and the two are told apart here instead.
+	empty, err := IsEmpty(ctx, repo)
+	if err != nil {
 		return "", err
+	}
+	if empty {
+		return "", ErrEmptyRepo
+	}
+
+	cnt, err := CountCommits(ctx, repo, "HEAD")
+	if err != nil {
+		return "", err
+	}
+	hash, err := LatestHash(ctx, repo)
+	if err != nil {
+		return "", err
+	}
+	rev := fmt.Sprintf("%s-%d-g%s", noTagBase, cnt, hash)
+
+	// Untracked files are excluded because that is what "--dirty" ignores,
+	// and the two paths must agree on what a dirty tree is.
+	args := []string{"status", "--porcelain", "--untracked-files=no"}
+	sout, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return "", err
+	}
+	if sout != "" {
+		rev += "-dev"
 	}
 	return rev, nil
 }

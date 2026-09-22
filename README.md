@@ -28,6 +28,8 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   `WorkTreeStatus`, `ProjectName`, `ProjectOrigin`.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `Describe`, `CountCommits`, `Messages`, `ChangeLog`.
+  `Describe` always returns a valid SemVer 2.0 version — see
+  [docs/versioning.md](docs/versioning.md).
 - **Mutations** — `Init`, `AddRemote`, `Add`, `AddAll`, `Commit`, `Tag`, `Push`.
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
@@ -80,9 +82,11 @@ is dirty:
 ```go
 ctx := context.Background()
 
-// The empty string means the current working directory. Prints the
-// closest tag alone ("v1.2.0"), or with the distance from HEAD
-// ("v1.2.0-3-g9ab3d41"); a dirty tree appends "-dev".
+// The empty string means the current working directory. Always a valid
+// SemVer: the closest version tag alone ("v1.2.0"), or with the
+// distance from HEAD ("v1.2.0-3-g9ab3d41"); a dirty tree appends
+// "-dev". With no version tag reachable the distance is counted from
+// "v0.0.0".
 name, err := gitaid.Describe(ctx, "")
 if err != nil {
 	log.Fatal(err)
@@ -105,6 +109,9 @@ if err != nil {
 }
 fmt.Println(name)
 ```
+
+Every string `Describe` can return, what each part means, and how the results
+compare are documented in [docs/versioning.md](docs/versioning.md).
 
 Generate a changelog from commit summaries since a given revision:
 

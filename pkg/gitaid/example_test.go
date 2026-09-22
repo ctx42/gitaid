@@ -59,9 +59,11 @@ func ExampleGetFile() {
 func ExampleDescribe() {
 	ctx := context.Background()
 
-	// The empty string means the current working directory. Prints the
-	// closest tag alone ("v1.2.0"), or with the distance from HEAD
-	// ("v1.2.0-3-g9ab3d41"); a dirty tree appends "-dev".
+	// The empty string means the current working directory. Always a valid
+	// SemVer: the closest version tag alone ("v1.2.0"), or with the
+	// distance from HEAD ("v1.2.0-3-g9ab3d41"); a dirty tree appends
+	// "-dev". With no version tag reachable the distance is counted from
+	// "v0.0.0".
 	name, err := gitaid.Describe(ctx, "")
 	if err != nil {
 		log.Fatal(err)

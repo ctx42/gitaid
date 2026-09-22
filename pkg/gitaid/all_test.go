@@ -119,18 +119,6 @@ func Bare(t tester.T, elems ...string) string {
 	return dir
 }
 
-// assertHash asserts hash is valid hex string.
-func assertHash(t tester.T, rev string) {
-	t.Helper()
-	assert.True(t, len(rev) >= 7)
-	for _, c := range rev {
-		notHex := c < 48 || (c > 57 && c < 65) || (c > 70 && c < 97) || c > 102
-		if !assert.False(t, notHex) {
-			return
-		}
-	}
-}
-
 // TError is a test structure implementing error and exitStatus interfaces.
 type TError struct {
 	Err      string
