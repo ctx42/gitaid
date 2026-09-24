@@ -1674,9 +1674,8 @@ func Test_Init(t *testing.T) {
 		// --- Then ---
 		assert.NoError(t, err)
 
-		have := prj.ExeStdout("git", "status")
-		assert.Contain(t, "On branch master", have)
-		assert.Contain(t, "No commits yet", have)
+		assert.DirExist(t, filepath.Join(prj.Root(), ".git"))
+		assert.Contain(t, "No commits yet", prj.ExeStdout("git", "status"))
 	})
 
 	t.Run("error", func(t *testing.T) {
