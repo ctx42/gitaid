@@ -1,3 +1,6 @@
+## v0.6.1 (Thu, 24 Sep 2026 10:01:14 UTC)
+- test(gitaid): bump testkit and stop Test_Init assuming master.
+
 ## v0.6.0 (Thu, 24 Sep 2026 08:56:17 UTC)
 - feat(gitaid): add Branch to report the checked-out branch.
 - test(gitaid): cover remaining reachable error paths.
