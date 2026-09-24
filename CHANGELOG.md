@@ -1,3 +1,7 @@
+## v0.6.0 (Thu, 24 Sep 2026 08:56:17 UTC)
+- feat(gitaid): add Branch to report the checked-out branch.
+- test(gitaid): cover remaining reachable error paths.
+
 ## v0.5.0 (Tue, 22 Sep 2026 13:20:29 UTC)
 - feat(gitaid)!: add Derive for ordered SemVer versions.
 
