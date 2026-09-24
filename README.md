@@ -25,7 +25,7 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 ## Features
 
 - **Repository inspection** — `IsRepo`, `IsEmpty`, `IsClean`,
-  `WorkTreeStatus`, `ProjectName`, `ProjectOrigin`.
+  `WorkTreeStatus`, `Branch`, `ProjectName`, `ProjectOrigin`.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `Describe`, `Derive`, `CountCommits`, `Messages`,
   `ChangeLog`. `Describe` always returns a valid SemVer 2.0 version, and
@@ -155,15 +155,16 @@ if err != nil {
 Functions return one of these sentinel errors when git reports a recognized
 condition. Match them with `errors.Is`:
 
-| Error          | Meaning                                                 |
-|----------------|---------------------------------------------------------|
-| `ErrNotRepo`   | Directory is not a git repository.                      |
-| `ErrEmptyRepo` | Repository is initialized but has no commits.           |
-| `ErrUnkRev`    | Revision is unknown.                                    |
-| `ErrNoRemote`  | Repository has no remote configured.                    |
-| `ErrUnkTag`    | Searched tag does not exist.                            |
-| `ErrUnkFile`   | File or directory does not exist in the repository.     |
-| `ErrGit`       | git exited with an otherwise unrecognized error.        |
+| Error          | Meaning                                             |
+|----------------|-----------------------------------------------------|
+| `ErrNotRepo`   | Directory is not a git repository.                  |
+| `ErrEmptyRepo` | Repository is initialized but has no commits.       |
+| `ErrUnkRev`    | Revision is unknown.                                |
+| `ErrNoRemote`  | Repository has no remote configured.                |
+| `ErrUnkTag`    | Searched tag does not exist.                        |
+| `ErrUnkFile`   | File or directory does not exist in the repository. |
+| `ErrDetached`  | Repository HEAD is detached, so it has no branch.   |
+| `ErrGit`       | git exited with an otherwise unrecognized error.    |
 
 Any git error that maps to none of the above is returned verbatim as a plain
 `error` carrying git's message.

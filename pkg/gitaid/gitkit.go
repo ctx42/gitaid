@@ -59,6 +59,10 @@ var (
 	// files or not committed changes.
 	ErrNotClean = errors.New("working directory not clean")
 
+	// ErrDetached is an error returned when repository has no branch checked
+	// out because its HEAD is detached.
+	ErrDetached = errors.New("detached HEAD")
+
 	// ErrGit is an error returned when git binary encounters unknown error.
 	ErrGit = errors.New("git error")
 )
@@ -84,6 +88,22 @@ func IsEmpty(ctx context.Context, repo string) (bool, error) {
 		return false, err
 	}
 	return false, nil
+}
+
+// Branch returns the name of the branch checked out in the repository. It
+// returns [ErrDetached] when HEAD is detached, because then there is no branch
+// name to report. The empty string used for repo means current working
+// directory.
+func Branch(ctx context.Context, repo string) (string, error) {
+	args := []string{"branch", "--show-current"}
+	name, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return "", err
+	}
+	if name == "" {
+		return "", ErrDetached
+	}
+	return name, nil
 }
 
 // ProjectName returns project name based on repository name at origin or

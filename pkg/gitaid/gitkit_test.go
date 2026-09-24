@@ -117,6 +117,56 @@ func Test_IsEmpty(t *testing.T) {
 	})
 }
 
+func Test_Branch(t *testing.T) {
+	t.Run("checked out branch", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "branch", "-M", "feature/x")
+		prj.Close()
+
+		// --- When ---
+		have, err := Branch(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "feature/x", have)
+	})
+
+	t.Run("error - detached head", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "checkout", "--detach")
+		prj.Close()
+
+		// --- When ---
+		have, err := Branch(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrDetached, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := Branch(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
+}
+
 func Test_ProjectName(t *testing.T) {
 	t.Run("not git repo", func(t *testing.T) {
 		// --- Given ---
