@@ -1,3 +1,7 @@
+## v0.6.2 (Thu, 24 Sep 2026 11:24:11 UTC)
+- ci: add GitHub Actions workflow running race tests.
+- fix(gitaid): push the current branch to origin regardless of config.
+
 ## v0.6.1 (Thu, 24 Sep 2026 10:01:14 UTC)
 - test(gitaid): bump testkit and stop Test_Init assuming master.
 
