@@ -795,7 +795,7 @@ func Tag(ctx context.Context, repo, tag, msg string) error {
 func Push(ctx context.Context, repo string) error {
 	ctx, cxl := context.WithTimeout(ctx, 15*time.Second)
 	defer cxl()
-	args := []string{"push", "--follow-tags"}
+	args := []string{"push", "--follow-tags", "origin", "HEAD"}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
 	}
