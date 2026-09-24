@@ -13,9 +13,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/ctx42/testing/pkg/assert"
 	"github.com/ctx42/testing/pkg/must"
 	"github.com/ctx42/testkit/pkg/iokit"
@@ -932,6 +934,24 @@ func Test_Describe(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "v0.1.0", have)
 	})
+
+	t.Run("error - bare repository", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		bare := t.TempDir()
+		prj.Exe("git", "clone", "--bare", prj.Root(), bare)
+		prj.Close()
+
+		// --- When ---
+		have, err := Describe(ctx, bare)
+
+		// --- Then ---
+		assert.ErrorContain(t, "must be run in a work tree", err)
+		assert.Empty(t, have)
+	})
 }
 
 func Test_describeNoTag(t *testing.T) {
@@ -996,6 +1016,24 @@ func Test_describeNoTag(t *testing.T) {
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - bare repository", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		bare := t.TempDir()
+		prj.Exe("git", "clone", "--bare", prj.Root(), bare)
+		prj.Close()
+
+		// --- When ---
+		have, err := describeNoTag(ctx, bare)
+
+		// --- Then ---
+		assert.ErrorContain(t, "must be run in a work tree", err)
 		assert.Empty(t, have)
 	})
 }
@@ -1222,6 +1260,116 @@ func Test_Derive(t *testing.T) {
 		assert.ErrorIs(t, ErrNotRepo, err)
 		assert.Equal(t, Version{}, have)
 	})
+
+	t.Run("error - bare repository", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.4.0")
+		bare := t.TempDir()
+		prj.Exe("git", "clone", "--bare", prj.Root(), bare)
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, bare, "")
+
+		// --- Then ---
+		assert.ErrorContain(t, "must be run in a work tree", err)
+		assert.Equal(t, Version{}, have)
+	})
+}
+
+func Test_splitVersion_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		desc   string
+		wTag   string
+		wCount int
+		wDirty bool
+	}{
+		{"past tag", "v1.2.0-3-g9ab3d41", "v1.2.0", 3, false},
+		{
+			"past tag dirty",
+			"v1.2.0-3-g9ab3d41-dirty",
+			"v1.2.0",
+			3,
+			true,
+		},
+		{
+			"tag holding a dash",
+			"v1.0.0-rc.1-2-g9ab3d41",
+			"v1.0.0-rc.1",
+			2,
+			false,
+		},
+		{"on tag", "v1.2.0", "v1.2.0", 0, false},
+		{"on tag dirty", "v1.2.0-dirty", "v1.2.0", 0, true},
+		{
+			"count overflows int",
+			"v1.2.0-99999999999999999999-g9ab3d41",
+			"v1.2.0-99999999999999999999-g9ab3d41",
+			0,
+			false,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			hTag, hCount, hDirty := splitVersion(tc.desc)
+
+			// --- Then ---
+			assert.Equal(t, tc.wTag, hTag)
+			assert.Equal(t, tc.wCount, hCount)
+			assert.Equal(t, tc.wDirty, hDirty)
+		})
+	}
+}
+
+func Test_bumped(t *testing.T) {
+	t.Run("error - unknown bump", func(t *testing.T) {
+		// --- Given ---
+		base := semver.MustParse("v1.2.3")
+
+		// --- When ---
+		have, err := bumped(base, "sideways")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadBump, err)
+		assert.Equal(t, semver.Version{}, have)
+	})
+}
+
+func Test_bumped_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		base string
+		bump string
+		want string
+	}{
+		{"major", "v1.2.3", BumpMajor, "v2.0.0"},
+		{"minor", "v1.2.3", BumpMinor, "v1.3.0"},
+		{"patch", "v1.2.3", BumpPatch, "v1.2.4"},
+		{"empty is patch", "v1.2.3", "", "v1.2.4"},
+		{"major below 1 is minor", "v0.4.3", BumpMajor, "v0.5.0"},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- Given ---
+			base := semver.MustParse(tc.base)
+
+			// --- When ---
+			have, err := bumped(base, tc.bump)
+
+			// --- Then ---
+			assert.NoError(t, err)
+			assert.Equal(t, tc.want, have.Original())
+		})
+	}
 }
 
 func Test_CountCommits(t *testing.T) {
@@ -2144,6 +2292,47 @@ func Test_GetFile(t *testing.T) {
 		// --- Then ---
 		assert.ErrorIs(t, exec.ErrNotFound, err)
 		assert.NoFileExist(t, dst)
+	})
+
+	t.Run("error - tar fails", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+
+		// A tar that drains the archive and exits 1 fails only after
+		// git archive has succeeded.
+		binDir := t.TempDir()
+		script := "#!/bin/sh\ncat >/dev/null\nexit 1\n"
+		tar := oskit.Create(t, script, binDir, "tar")
+		must.Nil(os.Chmod(tar, 0o755))
+		sep := string(os.PathListSeparator)
+		t.Setenv("PATH", binDir+sep+os.Getenv("PATH"))
+
+		dst := filepath.Join(t.TempDir(), "from-remote.txt")
+
+		// --- When ---
+		err := GetFile(ctx, bare, branch, "file0.txt", dst)
+
+		// --- Then ---
+		assert.ErrorEqual(t, "exit status 1", err)
+		assert.NoFileExist(t, dst)
+	})
+
+	t.Run("error - writing destination", func(t *testing.T) {
+		// --- Given ---
+		if _, err := os.Stat("/dev/full"); err != nil {
+			t.Skip("/dev/full not available")
+		}
+
+		ctx := t.Context()
+
+		// Every write to /dev/full fails with ENOSPC.
+		dst := "/dev/full"
+
+		// --- When ---
+		err := GetFile(ctx, bare, branch, "file0.txt", dst)
+
+		// --- Then ---
+		assert.ErrorIs(t, syscall.ENOSPC, err)
 	})
 }
 
