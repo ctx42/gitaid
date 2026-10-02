@@ -61,10 +61,6 @@ var (
 	// anything else that is not a regular file.
 	ErrNotFile = errors.New("not a regular file")
 
-	// ErrNotClean is returned when the working directory has untracked files
-	// or uncommitted changes.
-	ErrNotClean = errors.New("working directory not clean")
-
 	// ErrDetached is returned when a repository has no branch checked out
 	// because its HEAD is detached.
 	ErrDetached = errors.New("detached HEAD")

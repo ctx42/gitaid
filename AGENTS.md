@@ -41,7 +41,7 @@ The entire library is the single package `pkg/gitaid`:
 1. **Sentinel errors + `gitErrorOr`.** Error states are the package-level
    `Err*` sentinels at the top of `gitkit.go` (`ErrNotRepo`, `ErrEmptyRepo`,
    `ErrUnkRev`, `ErrNoTags`, `ErrNoRemote`, `ErrUnkTag`, `ErrUnkFile`,
-   `ErrNotFile`, `ErrNotClean`, `ErrDetached`, `ErrBadArg`, `ErrGit`, plus
+   `ErrNotFile`, `ErrDetached`, `ErrBadArg`, `ErrGit`, plus
    `ErrBadBump`). `gitErrorOr` maps git's English stderr text to these via
    substring matching; an unmapped message becomes `ErrGit` wrapping the exec
    error. When handling a new git failure, add a `case` there rather than
