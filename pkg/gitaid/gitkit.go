@@ -1170,9 +1170,6 @@ func gitErrorOr(msg string, err error) error {
 	case strings.Contains(msg, "can only be used inside a git repository"):
 		return ErrNotRepo
 
-	case msg == "exit status 1":
-		return ErrGit
-
 	default:
 		if err == nil {
 			return fmt.Errorf("%w: %s", ErrGit, msg)

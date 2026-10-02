@@ -3581,12 +3581,6 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 			ErrNoRemote,
 		},
 		{
-			"bare exit status 1",
-			"exit status 1",
-			ErrTest,
-			ErrGit,
-		},
-		{
 			"missing remote section no remote",
 			"key does not contain a section: remote",
 			ErrTest,
