@@ -3130,7 +3130,7 @@ func Test_extractFile(t *testing.T) {
 		have, err := extractFile(r, "a.txt")
 
 		// --- Then ---
-		assert.ErrorContain(t, "read archive: ", err)
+		assert.ErrorIs(t, tar.ErrHeader, err)
 		assert.Nil(t, have)
 	})
 }
