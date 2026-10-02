@@ -20,7 +20,6 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/ctx42/testing/pkg/assert"
 	"github.com/ctx42/testing/pkg/must"
-	"github.com/ctx42/testkit/pkg/iokit"
 	"github.com/ctx42/testkit/pkg/oskit"
 	"github.com/ctx42/testkit/pkg/prjkit"
 	"github.com/ctx42/testkit/pkg/randkit"
@@ -3250,52 +3249,6 @@ func Test_gitMessage_tabular(t *testing.T) {
 			assert.Equal(t, tc.want, have)
 		})
 	}
-}
-
-func Test_firstLine(t *testing.T) {
-	t.Run("first line", func(t *testing.T) {
-		// --- Given ---
-		r := strings.NewReader("first\nsecond\nthird\n")
-
-		// --- When ---
-		have := firstLine(r)
-
-		// --- Then ---
-		assert.Equal(t, "first", have)
-	})
-
-	t.Run("empty reader", func(t *testing.T) {
-		// --- Given ---
-		r := strings.NewReader("")
-
-		// --- When ---
-		have := firstLine(r)
-
-		// --- Then ---
-		assert.Equal(t, "", have)
-	})
-
-	t.Run("trims both sides", func(t *testing.T) {
-		// --- Given ---
-		r := strings.NewReader("  first    \nsecond\n")
-
-		// --- When ---
-		have := firstLine(r)
-
-		// --- Then ---
-		assert.Equal(t, "first", have)
-	})
-
-	t.Run("read error", func(t *testing.T) {
-		// --- Given ---
-		er := iokit.ErrReader(strings.NewReader("first\n"), 0)
-
-		// --- When ---
-		have := firstLine(er)
-
-		// --- Then ---
-		assert.Equal(t, "", have)
-	})
 }
 
 func Test_gitErrorOr(t *testing.T) {

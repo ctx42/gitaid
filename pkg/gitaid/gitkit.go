@@ -1071,16 +1071,6 @@ func gitMessage(stderr string) string {
 	return firstLine(strings.NewReader(stderr))
 }
 
-// firstLine returns the first trimmed line from a reader.
-func firstLine(r io.Reader) string {
-	scn := bufio.NewScanner(r)
-	scn.Split(bufio.ScanLines)
-	for scn.Scan() {
-		return strings.TrimSpace(scn.Text())
-	}
-	return "" // A scan error yields the empty string, same as no input.
-}
-
 // gitErrorOr takes error message printed by the git command and returns a
 // matching sentinel error or, for a message no case matches, [ErrGit] with the
 // message text and err wrapped. If the message text is empty err will be
