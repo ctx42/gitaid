@@ -32,54 +32,53 @@ import (
 
 // Git related errors.
 var (
-	// ErrNotRepo is error returned when a directory is not a git repository.
+	// ErrNotRepo is returned when a directory is not a git repository.
 	ErrNotRepo = errors.New("not a git repository")
 
-	// ErrEmptyRepo is an error returned when repository is initialized but
-	// has no commits.
+	// ErrEmptyRepo is returned when a repository is initialized but has no
+	// commits.
 	ErrEmptyRepo = errors.New("empty git repository")
 
-	// ErrUnkRev is an error returned when revision is unknown.
+	// ErrUnkRev is returned when a revision is unknown.
 	ErrUnkRev = errors.New("unknown revision")
 
-	// ErrNoTags is an error returned when repository has no tags.
+	// ErrNoTags is returned when a repository has no tags.
 	ErrNoTags = errors.New("no tags found")
 
-	// ErrNoRemote is an error returned when repository has no remote
-	// configured.
+	// ErrNoRemote is returned when a repository has no remote configured.
 	ErrNoRemote = errors.New("no remote")
 
-	// ErrUnkTag is an error returned when searched tag does not exist in
-	// the repository.
+	// ErrUnkTag is returned when the searched tag does not exist in the
+	// repository.
 	ErrUnkTag = errors.New("tag not found")
 
-	// ErrUnkFile is an error returned when file or directory does not exist
-	// in the repository.
+	// ErrUnkFile is returned when a file or directory does not exist in the
+	// repository.
 	ErrUnkFile = errors.New("file not found")
 
 	// ErrNotFile is returned when a path names a directory, a symlink, or
 	// anything else that is not a regular file.
 	ErrNotFile = errors.New("not a regular file")
 
-	// ErrNotClean is an error returned when working directory has untracked
-	// files or not committed changes.
+	// ErrNotClean is returned when the working directory has untracked files
+	// or uncommitted changes.
 	ErrNotClean = errors.New("working directory not clean")
 
-	// ErrDetached is an error returned when repository has no branch checked
-	// out because its HEAD is detached.
+	// ErrDetached is returned when a repository has no branch checked out
+	// because its HEAD is detached.
 	ErrDetached = errors.New("detached HEAD")
 
 	// ErrBadArg is returned when a revision, tag, remote, or path argument
 	// starts with "-", so git would read it as an option.
 	ErrBadArg = errors.New("argument looks like an option")
 
-	// ErrGit is an error returned when git binary encounters unknown error. It
-	// carries git's message and wraps the underlying exec error.
+	// ErrGit is returned when the git binary fails in a way no other error
+	// covers. It carries git's message and wraps the underlying exec error.
 	ErrGit = errors.New("git error")
 )
 
-// IsRepo returns nil error if directory is initialized git repository,
-// otherwise it returns ErrNotRepo. The empty string used for dir means current
+// IsRepo returns nil if dir is an initialized git repository, otherwise it
+// returns [ErrNotRepo]. The empty string used for dir means the current
 // working directory.
 func IsRepo(ctx context.Context, dir string) error {
 	args := []string{"rev-parse", "--git-dir"}
@@ -89,8 +88,8 @@ func IsRepo(ctx context.Context, dir string) error {
 	return nil
 }
 
-// IsEmpty returns true if given repository is empty. The empty repository is
-// defined as one whose HEAD points at no commit.
+// IsEmpty returns true if the repository is empty, which is defined as its
+// HEAD pointing at no commit.
 func IsEmpty(ctx context.Context, repo string) (bool, error) {
 	args := []string{"rev-parse", "-q", "--verify", "HEAD^{commit}"}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
@@ -121,9 +120,10 @@ func Branch(ctx context.Context, repo string) (string, error) {
 	return name, nil
 }
 
-// ProjectName returns project name based on repository name at origin or,
-// without an origin, the name of the repository's top-level directory, which
-// for a bare repository is its git directory without a ".git" suffix.
+// ProjectName returns the project name based on the repository name at
+// origin or, without an origin, the name of the repository's top-level
+// directory, which for a bare repository is its git directory without a
+// ".git" suffix.
 //
 // Example:
 //
@@ -166,8 +166,8 @@ func topLevelName(ctx context.Context, repo string) (string, error) {
 	return strings.TrimSuffix(filepath.Base(dir), ".git"), nil
 }
 
-// ProjectOrigin returns the repository origin URL. If repository has no origin
-// it returns empty string and nil error.
+// ProjectOrigin returns the repository origin URL. If the repository has no
+// origin, it returns the empty string and a nil error.
 func ProjectOrigin(ctx context.Context, repo string) (string, error) {
 	args := []string{"config", "--local", "-l"}
 	sout, err := runGitCmd(ctx, repo, args...)
@@ -189,8 +189,8 @@ func ProjectOrigin(ctx context.Context, repo string) (string, error) {
 
 // FirstHash returns the abbreviated hash of the first commit in the repo. Git
 // abbreviates to at least seven characters, extending it only as far as needed
-// to stay unambiguous. If the repository has no commits, it will return
-// ErrEmptyRepo error.
+// to stay unambiguous. If the repository has no commits, it returns
+// [ErrEmptyRepo].
 func FirstHash(ctx context.Context, repo string) (string, error) {
 	args := []string{
 		"rev-list", "--max-parents=0", "--abbrev-commit", "--abbrev=7", "HEAD",
@@ -203,8 +203,8 @@ func FirstHash(ctx context.Context, repo string) (string, error) {
 }
 
 // LatestHash returns the abbreviated hash of the latest commit, at least seven
-// characters long whatever core.abbrev says. If repository has no commits it
-// will return ErrEmptyRepo error.
+// characters long whatever core.abbrev says. If the repository has no commits,
+// it returns [ErrEmptyRepo].
 func LatestHash(ctx context.Context, repo string) (string, error) {
 	args := []string{"log", "--abbrev=7", "--pretty=format:%h", "-n", "1"}
 	sout, err := runGitCmd(ctx, repo, args...)
@@ -215,9 +215,9 @@ func LatestHash(ctx context.Context, repo string) (string, error) {
 }
 
 // RevDate returns the commit date of the given revision. A tag, annotated or
-// not, resolves to the commit it points at. Returns ErrUnkRev when repository
-// is empty or revision doesn't exist. To distinguish between both cases use
-// IsEmpty.
+// not, resolves to the commit it points at. It returns [ErrUnkRev] when the
+// repository is empty or the revision doesn't exist; [IsEmpty] tells the two
+// apart.
 func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
 	if err := noOption(rev); err != nil {
 		return time.Time{}, err
@@ -768,7 +768,7 @@ func Messages(ctx context.Context, repo, rng string) ([]string, error) {
 	return msgs, nil
 }
 
-// ChangeLog generates changelog of the commits HEAD has and the given base
+// ChangeLog generates the changelog of the commits HEAD has and the given base
 // revision does not, so a base on a diverged branch adds none of its own
 // commits. The empty base means every commit reachable from HEAD.
 // The changelog messages are constructed from the first line of the commit
@@ -806,8 +806,8 @@ func ChangeLog(ctx context.Context, repo, rev string) ([]string, error) {
 	return entries, nil
 }
 
-// Init initializes git repository in given directory. The empty string used
-// for dir means current working directory.
+// Init initializes a git repository in dir. The empty string used for dir
+// means the current working directory.
 func Init(ctx context.Context, dir string) error {
 	args := []string{"init"}
 	if _, err := runGitCmd(ctx, dir, args...); err != nil {
@@ -816,7 +816,7 @@ func Init(ctx context.Context, dir string) error {
 	return nil
 }
 
-// AddRemote adds remote named origin to git repository.
+// AddRemote adds a remote named origin to the git repository in dir.
 func AddRemote(ctx context.Context, dir, remote string) error {
 	if err := noOption(remote); err != nil {
 		return err
@@ -828,7 +828,7 @@ func AddRemote(ctx context.Context, dir, remote string) error {
 	return nil
 }
 
-// IsClean returns true if given repository is clean and has no untracked files.
+// IsClean returns true if the repository is clean and has no untracked files.
 func IsClean(ctx context.Context, repo string) (bool, error) {
 	args := []string{"status", "--porcelain"}
 	sout, err := runGitCmd(ctx, repo, args...)
@@ -861,8 +861,8 @@ func Add(ctx context.Context, repo string, pth ...string) error {
 	return nil
 }
 
-// AddAll adds all files to the index. The empty string used for repo directory
-// means current working directory.
+// AddAll adds all files to the index. The empty string used for repo means the
+// current working directory.
 func AddAll(ctx context.Context, repo string) error {
 	args := []string{"add", "-A"}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
@@ -871,8 +871,8 @@ func AddAll(ctx context.Context, repo string) error {
 	return nil
 }
 
-// Commit commits with a message. The empty string used for repo directory
-// means current working directory.
+// Commit commits with a message. The empty string used for repo means the
+// current working directory.
 func Commit(ctx context.Context, repo, msg string) error {
 	args := []string{"commit", "-m", msg}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
@@ -882,7 +882,7 @@ func Commit(ctx context.Context, repo, msg string) error {
 }
 
 // Tag tags the current revision with tag and message. The empty string used
-// for working directory means current working directory.
+// for repo means the current working directory.
 func Tag(ctx context.Context, repo, tag, msg string) error {
 	if err := noOption(tag); err != nil {
 		return err
@@ -894,10 +894,10 @@ func Tag(ctx context.Context, repo, tag, msg string) error {
 	return nil
 }
 
-// Push will push the current branch and tags to the origin. When deadline on
-// the context is not set it will be set to 15s. It returns [ErrDetached] when
-// HEAD is detached, because then there is no branch to push. The empty string
-// used for repo directory means current working directory.
+// Push pushes the current branch and its annotated tags to the origin. A
+// context without a deadline is given one of 15s. It returns [ErrDetached]
+// when HEAD is detached, because then there is no branch to push. The empty
+// string used for repo means the current working directory.
 func Push(ctx context.Context, repo string) error {
 	ctx, cxl := withTimeout(ctx, 15*time.Second)
 	defer cxl()
@@ -911,10 +911,10 @@ func Push(ctx context.Context, repo string) error {
 	return nil
 }
 
-// GetFile gets a file from given repository, branch or tag, source path and
-// stores it in dst. When deadline on the context is not set it will be set to
-// 10s. The empty string used for repo directory means current working
-// directory, and a relative repo path is resolved against it too. It returns
+// GetFile gets the file at path src on a branch or tag of the repository and
+// stores it in dst. A context without a deadline is given one of 10s. The
+// empty string used for repo means the current working directory, and a
+// relative repo path is resolved against it too. It returns
 // [ErrUnkFile] when src does not exist and [ErrNotFile] when src names a
 // directory or anything else that is not a regular file.
 func GetFile(ctx context.Context, repo, branch, src, dst string) error {
@@ -959,8 +959,8 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 		return errTar
 	}
 
-	//nolint:gosec // dst is the caller-controlled destination path.
-	if err = os.WriteFile(dst, data, 0o644); err != nil {
+	err = os.WriteFile(dst, data, 0o644) //nolint:gosec // The caller picks dst.
+	if err != nil {
 		return fmt.Errorf("destination: %w", err)
 	}
 	return nil
@@ -1019,10 +1019,10 @@ func extractFile(r io.Reader, name string) ([]byte, error) {
 	return data, nil
 }
 
-// hashRx represents commit hash.
+// hashRx matches an abbreviated or full commit hash.
 var hashRx = regexp.MustCompile("^[0-9a-f]{7,}$")
 
-// IsHash returns true if s is git hash.
+// IsHash returns true if s is a git commit hash, at least seven characters.
 func IsHash(s string) bool { return hashRx.MatchString(s) }
 
 // noOption returns [ErrBadArg] for the first of args that starts with "-".
@@ -1038,9 +1038,9 @@ func noOption(args ...string) error {
 	return nil
 }
 
-// runGitCmd runs git command in given repo with arguments. Returns messages
-// written by the git to standard output as strings and error if any. The empty
-// string used for repo directory means current working directory.
+// runGitCmd runs git with args in repo and returns its trimmed standard
+// output, or the error gitErrorOr maps its stderr to. The empty string used
+// for repo means the current working directory.
 func runGitCmd(
 	ctx context.Context,
 	repo string,
