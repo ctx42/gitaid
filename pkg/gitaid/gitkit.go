@@ -243,10 +243,11 @@ func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
 	return time.Unix(ts, 0), nil
 }
 
-// ClosestTag returns the closest tag reachable from the start revision. The
-// empty startRev means HEAD. If the returned tag is the same as the startRev,
-// it means this is the only revision in the repository. It returns [ErrUnkRev]
-// when startRev does not name a commit.
+// ClosestTag returns the closest tag reachable from HEAD or, when startRev is
+// set, from the parent of startRev, so that a tag on startRev itself is
+// skipped. A root startRev has no parent to search from, so it is returned
+// itself. It returns the empty string when no tag is reachable, and
+// [ErrUnkRev] when startRev does not name a commit.
 func ClosestTag(ctx context.Context, repo, startRev string) (string, error) {
 	if err := noOption(startRev); err != nil {
 		return "", err
