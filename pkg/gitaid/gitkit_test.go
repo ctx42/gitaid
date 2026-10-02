@@ -515,6 +515,26 @@ func Test_RevDate(t *testing.T) {
 		assert.ErrorAs(t, &e, err)
 		assert.Zero(t, tim)
 	})
+
+	t.Run("error - revision looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+		out := filepath.Join(t.TempDir(), "out.txt")
+		rev := "--output=" + out
+
+		// --- When ---
+		have, err := RevDate(ctx, prj.Root(), rev)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Zero(t, have)
+
+		assert.NoFileExist(t, out)
+	})
 }
 
 func Test_ClosestTag(t *testing.T) {
@@ -692,6 +712,22 @@ func Test_ClosestTag(t *testing.T) {
 		// --- Then ---
 		assert.NoError(t, err)
 		assert.Equal(t, "v0.1.0", tag)
+	})
+
+	t.Run("error - start revision looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := ClosestTag(ctx, prj.Root(), "--all")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Empty(t, have)
 	})
 }
 
@@ -1422,6 +1458,22 @@ func Test_CountCommits(t *testing.T) {
 		assert.ErrorIs(t, ErrNotRepo, err)
 		assert.Equal(t, 0, have)
 	})
+
+	t.Run("error - revision looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := CountCommits(ctx, prj.Root(), "--all")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Equal(t, 0, have)
+	})
 }
 
 func Test_Messages(t *testing.T) {
@@ -1478,6 +1530,26 @@ func Test_Messages(t *testing.T) {
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
 		assert.Nil(t, have)
+	})
+
+	t.Run("error - range looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+		out := filepath.Join(t.TempDir(), "out.txt")
+		rng := "--output=" + out
+
+		// --- When ---
+		have, err := Messages(ctx, prj.Root(), rng)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Nil(t, have)
+
+		assert.NoFileExist(t, out)
 	})
 }
 
@@ -1659,6 +1731,26 @@ func Test_ChangeLog(t *testing.T) {
 		assert.ErrorIs(t, bufio.ErrTooLong, err)
 		assert.Empty(t, cl)
 	})
+
+	t.Run("error - revision looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+		out := filepath.Join(t.TempDir(), "out.txt")
+		rev := "--output=" + out
+
+		// --- When ---
+		have, err := ChangeLog(ctx, prj.Root(), rev)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Nil(t, have)
+
+		assert.NoFileExist(t, out+"...HEAD")
+	})
 }
 
 func Test_Init(t *testing.T) {
@@ -1738,6 +1830,20 @@ func Test_AddRemote(t *testing.T) {
 			"origin\tgit@example.com:comp/project.git (push)\n"
 		have := prj.ExeStdout("git", "remote", "-v")
 		assert.Equal(t, want, have)
+	})
+
+	t.Run("error - remote looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Close()
+
+		// --- When ---
+		err := AddRemote(ctx, prj.Root(), "--mirror=push")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
 	})
 }
 
@@ -1940,6 +2046,24 @@ func Test_Add(t *testing.T) {
 		out := prj.ExeStdout("git", "status", "-s")
 		assert.Equal(t, "A  file0.txt\nA  file1.txt\n", out)
 	})
+
+	t.Run("path looking like an option is a path", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.CreateFileWith("dash 1", "-A")
+		prj.Close()
+
+		// --- When ---
+		err := Add(ctx, prj.Root(), "-A")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		out := prj.ExeStdout("git", "status", "-s")
+		assert.Equal(t, "A  -A\n?? file0.txt\n", out)
+	})
 }
 
 func Test_AddAll(t *testing.T) {
@@ -2081,6 +2205,21 @@ func Test_Tag(t *testing.T) {
 		assert.NoError(t, err)
 		out := prj.ExeStdout("git", "tag", "-n")
 		assert.Equal(t, "v0.0.0          tag message\n", out)
+	})
+
+	t.Run("error - tag looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		err := Tag(ctx, prj.Root(), "--force", "message")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
 	})
 }
 
@@ -2334,6 +2473,36 @@ func Test_GetFile(t *testing.T) {
 		// --- Then ---
 		assert.ErrorIs(t, syscall.ENOSPC, err)
 	})
+
+	t.Run("error - branch looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		marker := filepath.Join(t.TempDir(), "marker")
+		badBranch := "--exec=touch " + marker
+		dst := filepath.Join(t.TempDir(), "from-remote.txt")
+
+		// --- When ---
+		err := GetFile(ctx, bare, badBranch, "file0.txt", dst)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.NoFileExist(t, dst)
+
+		assert.NoFileExist(t, marker)
+	})
+
+	t.Run("error - source looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		dst := filepath.Join(t.TempDir(), "from-remote.txt")
+
+		// --- When ---
+		err := GetFile(ctx, bare, branch, "--list", dst)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.NoFileExist(t, dst)
+	})
 }
 
 func Test_IsHash_tabular(t *testing.T) {
@@ -2350,6 +2519,25 @@ func Test_IsHash_tabular(t *testing.T) {
 			assert.Equal(t, tc.want, IsHash(tc.in))
 		})
 	}
+}
+
+func Test_noOption(t *testing.T) {
+	t.Run("no option", func(t *testing.T) {
+		// --- When ---
+		err := noOption("", "v1.0.0..HEAD", "dir/file-1.txt")
+
+		// --- Then ---
+		assert.NoError(t, err)
+	})
+
+	t.Run("error - option among args", func(t *testing.T) {
+		// --- When ---
+		err := noOption("v1.0.0", "--output=x", "-y")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.ErrorContain(t, `"--output=x"`, err)
+	})
 }
 
 func Test_runGitCmd(t *testing.T) {

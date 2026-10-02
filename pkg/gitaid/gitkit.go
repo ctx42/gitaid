@@ -63,6 +63,10 @@ var (
 	// out because its HEAD is detached.
 	ErrDetached = errors.New("detached HEAD")
 
+	// ErrBadArg is returned when a revision, tag, remote, or path argument
+	// starts with "-", so git would read it as an option.
+	ErrBadArg = errors.New("argument looks like an option")
+
 	// ErrGit is an error returned when git binary encounters unknown error.
 	ErrGit = errors.New("git error")
 )
@@ -185,6 +189,9 @@ func LatestHash(ctx context.Context, repo string) (string, error) {
 // repository is empty or revision doesn't exist. To distinguish between both
 // cases use IsEmpty.
 func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
+	if err := noOption(rev); err != nil {
+		return time.Time{}, err
+	}
 	args := []string{"show", "--pretty=format:%ct", "--no-patch", rev}
 	dt, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
@@ -201,6 +208,9 @@ func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
 // empty startRev means HEAD. If the returned tag is the same as the startRev,
 // it means this is the only revision in the repository.
 func ClosestTag(ctx context.Context, repo, startRev string) (string, error) {
+	if err := noOption(startRev); err != nil {
+		return "", err
+	}
 	args := []string{"describe", "--tags", "--abbrev=0"}
 	if startRev != "" {
 		args = append(args, startRev+"~")
@@ -633,6 +643,9 @@ func bumped(base *semver.Version, bump string) (semver.Version, error) {
 // CountCommits returns the number of commits reachable from rev. The empty
 // string used for rev means HEAD.
 func CountCommits(ctx context.Context, repo, rev string) (int, error) {
+	if err := noOption(rev); err != nil {
+		return 0, err
+	}
 	if rev == "" {
 		rev = "HEAD"
 	}
@@ -658,6 +671,9 @@ func CountCommits(ctx context.Context, repo, rev string) (int, error) {
 // A commit with an empty message contributes no entry, so the result may be
 // shorter than the range and its indices do not track the commits.
 func Messages(ctx context.Context, repo, rng string) ([]string, error) {
+	if err := noOption(rng); err != nil {
+		return nil, err
+	}
 	if rng == "" {
 		rng = "HEAD"
 	}
@@ -680,6 +696,9 @@ func Messages(ctx context.Context, repo, rng string) ([]string, error) {
 // The changelog messages are constructed from the first line of the commit
 // message.
 func ChangeLog(ctx context.Context, repo, rev string) ([]string, error) {
+	if err := noOption(rev); err != nil {
+		return nil, err
+	}
 	if rev != "" {
 		rev = fmt.Sprintf("%s...", rev)
 	}
@@ -721,6 +740,9 @@ func Init(ctx context.Context, dir string) error {
 
 // AddRemote adds remote named origin to git repository.
 func AddRemote(ctx context.Context, dir, remote string) error {
+	if err := noOption(remote); err != nil {
+		return err
+	}
 	args := []string{"remote", "add", "origin", remote}
 	if _, err := runGitCmd(ctx, dir, args...); err != nil {
 		return err
@@ -751,9 +773,10 @@ func WorkTreeStatus(ctx context.Context, repo string) (string, error) {
 	return StateDirty, nil
 }
 
-// Add adds files to the index.
+// Add adds files to the index. Every pth is a path, even one starting with
+// "-".
 func Add(ctx context.Context, repo string, pth ...string) error {
-	args := append([]string{"add"}, pth...)
+	args := append([]string{"add", "--"}, pth...)
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
 	}
@@ -783,6 +806,9 @@ func Commit(ctx context.Context, repo, msg string) error {
 // Tag tags the current revision with tag and message. The empty string used
 // for working directory means current working directory.
 func Tag(ctx context.Context, repo, tag, msg string) error {
+	if err := noOption(tag); err != nil {
+		return err
+	}
 	args := []string{"tag", "-a", "-m", msg, tag}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
@@ -807,6 +833,9 @@ func Push(ctx context.Context, repo string) error {
 // 10s. The empty string used for repo directory means current working
 // directory.
 func GetFile(ctx context.Context, repo, branch, src, dst string) error {
+	if err := noOption(branch, src); err != nil {
+		return err
+	}
 	// Set deadline if not already set.
 	var waitDelay time.Duration
 	if tim, ok := ctx.Deadline(); ok {
@@ -881,6 +910,19 @@ var hashRx = regexp.MustCompile("^[0-9a-f]{7,}$")
 
 // IsHash returns true if s is git hash.
 func IsHash(s string) bool { return hashRx.MatchString(s) }
+
+// noOption returns [ErrBadArg] for the first of args that starts with "-".
+// Git parses such a value as an option, not as the revision, tag, remote, or
+// path it is passed as; "--output=<file>" or "--exec=<cmd>" then writes a file
+// or runs a command. The empty string passes.
+func noOption(args ...string) error {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-") {
+			return fmt.Errorf("%w: %q", ErrBadArg, arg)
+		}
+	}
+	return nil
+}
 
 // runGitCmd runs git command in given repo with arguments. Returns messages
 // written by the git to standard output as strings and error if any. The empty
