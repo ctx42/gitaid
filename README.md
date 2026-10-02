@@ -1,3 +1,4 @@
+[![Go](https://github.com/ctx42/gitaid/actions/workflows/go.yml/badge.svg)](https://github.com/ctx42/gitaid/actions/workflows/go.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ctx42/gitaid.svg)](https://pkg.go.dev/github.com/ctx42/gitaid)
 
