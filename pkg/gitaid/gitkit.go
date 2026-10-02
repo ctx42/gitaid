@@ -931,7 +931,7 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 
 	args := []string{"archive", "--remote=" + repo, "--format=tar", branch, src}
 	eout := &bytes.Buffer{}
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := gitCommand(ctx, args...)
 	cmd.Stderr = eout
 	cmd.WaitDelay = waitDelay
 	sout, err := cmd.StdoutPipe()
@@ -1038,6 +1038,15 @@ func noOption(args ...string) error {
 	return nil
 }
 
+// gitCommand returns the command running git with args. It sets LC_ALL=C,
+// which overrides LANG and LANGUAGE, so git's messages stay in the English
+// gitErrorOr matches against whatever the caller's locale is.
+func gitCommand(ctx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	return cmd
+}
+
 // runGitCmd runs git with args in repo and returns its trimmed standard
 // output, or the error gitErrorOr maps its stderr to. The empty string used
 // for repo means the current working directory.
@@ -1048,7 +1057,7 @@ func runGitCmd(
 ) (string, error) {
 
 	sout, eout := &bytes.Buffer{}, &bytes.Buffer{}
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := gitCommand(ctx, args...)
 	cmd.Stdout, cmd.Stderr = sout, eout
 	cmd.Dir = repo
 	if err := cmd.Run(); err != nil {

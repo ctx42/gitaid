@@ -6,11 +6,14 @@ package gitaid
 import (
 	"archive/tar"
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/ctx42/testing/pkg/assert"
@@ -151,4 +154,36 @@ func tarFile(name, content string) *tar.Header {
 // tarDir returns the header of a directory for tarOf.
 func tarDir(name string) *tar.Header {
 	return &tar.Header{Name: name, Typeflag: tar.TypeDir, Mode: 0o755}
+}
+
+// moFile returns a GNU gettext catalog translating each key of msgs to its
+// value, the format git loads from GIT_TEXTDOMAINDIR.
+func moFile(msgs map[string]string) []byte {
+	msgs = maps.Clone(msgs)
+	msgs[""] = "Content-Type: text/plain; charset=UTF-8\n"
+	ids := slices.Sorted(maps.Keys(msgs))
+
+	// The header and both string tables come first, then the strings.
+	cnt := uint32(len(ids))
+	strs := 28 + 16*cnt
+	var ori, trn, data bytes.Buffer
+	put := func(tbl *bytes.Buffer, s string) {
+		ent := []uint32{uint32(len(s)), strs + uint32(data.Len())}
+		_ = binary.Write(tbl, binary.LittleEndian, ent)
+		data.WriteString(s + "\x00")
+	}
+	for _, id := range ids {
+		put(&ori, id)
+	}
+	for _, id := range ids {
+		put(&trn, msgs[id])
+	}
+
+	buf := &bytes.Buffer{}
+	hdr := []uint32{0x950412de, 0, cnt, 28, 28 + 8*cnt, 0, strs}
+	_ = binary.Write(buf, binary.LittleEndian, hdr)
+	buf.Write(ori.Bytes())
+	buf.Write(trn.Bytes())
+	buf.Write(data.Bytes())
+	return buf.Bytes()
 }

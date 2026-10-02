@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -3173,6 +3174,21 @@ func Test_noOption(t *testing.T) {
 	})
 }
 
+func Test_gitCommand(t *testing.T) {
+	t.Run("pins the locale", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		t.Setenv("LC_ALL", "de_DE.UTF-8")
+
+		// --- When ---
+		have := gitCommand(ctx, "status", "--porcelain")
+
+		// --- Then ---
+		assert.Equal(t, []string{"git", "status", "--porcelain"}, have.Args)
+		assert.Equal(t, "LC_ALL=C", have.Env[len(have.Env)-1])
+	})
+}
+
 func Test_runGitCmd(t *testing.T) {
 	t.Run("standard output trimmed", func(t *testing.T) {
 		// --- Given ---
@@ -3215,6 +3231,46 @@ func Test_runGitCmd(t *testing.T) {
 
 		// Trace output lands on stderr in front of the fatal line.
 		t.Setenv("GIT_TRACE", "1")
+
+		// --- When ---
+		have, err := runGitCmd(ctx, repo, "rev-parse", "--git-dir")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - not git repo in a translated locale", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+		repo := prj.Root()
+
+		// A German catalog for both forms of git's "not a git repository"
+		// message stands in for an installed translation.
+		msgs := map[string]string{
+			"" +
+				"not a git repository (or any parent up to mount point %s)\n" +
+				"Stopping at filesystem boundary " +
+				"(GIT_DISCOVERY_ACROSS_FILESYSTEM not set).": "" +
+				"Kein Git-Repository (bis %s)",
+			"not a git repository (or any of the parent directories): %s": "" +
+				"Kein Git-Repository: %s",
+		}
+		dir := t.TempDir()
+		mod := oskit.MkdirAll(t, dir, "de", "LC_MESSAGES")
+		oskit.Create(t, string(moFile(msgs)), mod, "git.mo")
+		t.Setenv("GIT_TEXTDOMAINDIR", dir)
+		t.Setenv("LC_ALL", "en_US.UTF-8")
+		t.Setenv("LANGUAGE", "de")
+
+		cmd := exec.Command("git", "rev-parse", "--git-dir")
+		cmd.Dir = repo
+		out, _ := cmd.CombinedOutput()
+		if !strings.Contains(string(out), "Kein Git-Repository") {
+			t.Skipf("git does not load the test translation: %s", out)
+		}
 
 		// --- When ---
 		have, err := runGitCmd(ctx, repo, "rev-parse", "--git-dir")

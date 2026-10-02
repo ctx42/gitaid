@@ -47,7 +47,8 @@ The entire library is the single package `pkg/gitaid`:
    error. When handling a new git failure, add a `case` there rather than
    returning ad-hoc errors — callers rely on `errors.Is`. Because the mapping
    keys on git's human-readable messages, it is inherently
-   git-version-sensitive.
+   git-version-sensitive; `gitCommand` pins `LC_ALL=C` so those messages are
+   never translated.
 
 2. **No caller value reaches git as an option.** Revisions, tags, remotes, and
    paths pass through `noOption` (returns `ErrBadArg` for a leading `-`), or
@@ -56,7 +57,8 @@ The entire library is the single package `pkg/gitaid`:
 3. **`runGitCmd` is the only exec path** (except `GetFile`, which streams
    `git archive` through `archive/tar` to fetch a single file from a remote
    without a full clone, and manages its own timeout/`WaitDelay`). Prefer
-   routing new commands through `runGitCmd`.
+   routing new commands through `runGitCmd`; anything that must exec git
+   builds the command with `gitCommand`.
 
 4. **`Describe` and `Derive` share `describe`**, which returns the tag, count,
    hash, and dirty flag as fields; never re-parse the rendered `Describe`
