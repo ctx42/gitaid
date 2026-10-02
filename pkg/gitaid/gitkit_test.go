@@ -618,7 +618,6 @@ func Test_LatestHash(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-
 		want := prj.ExeStdout("git", "rev-parse", "--short=7", "HEAD")
 		want = strings.TrimSpace(want)
 		assert.Equal(t, want, have)
