@@ -27,7 +27,7 @@ import (
 )
 
 func Test_IsRepo(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -73,7 +73,7 @@ func Test_IsRepo(t *testing.T) {
 }
 
 func Test_IsEmpty(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -170,18 +170,18 @@ func Test_Branch(t *testing.T) {
 }
 
 func Test_ProjectName(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		name, err := ProjectName(ctx, prj.Root())
+		have, err := ProjectName(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Empty(t, name)
+		assert.Empty(t, have)
 	})
 
 	t.Run("empty git repo", func(t *testing.T) {
@@ -192,11 +192,11 @@ func Test_ProjectName(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		name, err := ProjectName(ctx, prj.Root())
+		have, err := ProjectName(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "project", name)
+		assert.Equal(t, "project", have)
 	})
 
 	t.Run("repo url", func(t *testing.T) {
@@ -208,11 +208,11 @@ func Test_ProjectName(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		name, err := ProjectName(ctx, prj.Root())
+		have, err := ProjectName(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "project", name)
+		assert.Equal(t, "project", have)
 	})
 
 	t.Run("repo url without .git", func(t *testing.T) {
@@ -226,11 +226,11 @@ func Test_ProjectName(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		name, err := ProjectName(ctx, prj.Root())
+		have, err := ProjectName(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "skw-proj", name)
+		assert.Equal(t, "skw-proj", have)
 	})
 
 	t.Run("scp url without path", func(t *testing.T) {
@@ -275,11 +275,11 @@ func Test_ProjectName(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		name, err := ProjectName(ctx, prj.Root())
+		have, err := ProjectName(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "project", name)
+		assert.Equal(t, "project", have)
 	})
 
 	t.Run("without origin from a subdirectory", func(t *testing.T) {
@@ -320,11 +320,11 @@ func Test_ProjectName(t *testing.T) {
 		t.Chdir(prj.Root())
 
 		// --- When ---
-		name, err := ProjectName(ctx, "")
+		have, err := ProjectName(ctx, "")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "project", name)
+		assert.Equal(t, "project", have)
 	})
 }
 
@@ -389,18 +389,18 @@ func Test_topLevelName(t *testing.T) {
 }
 
 func Test_ProjectOrigin(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		src, err := ProjectOrigin(ctx, prj.Root())
+		have, err := ProjectOrigin(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Empty(t, src)
+		assert.Empty(t, have)
 	})
 
 	t.Run("repository without origin", func(t *testing.T) {
@@ -411,11 +411,11 @@ func Test_ProjectOrigin(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		src, err := ProjectOrigin(ctx, prj.Root())
+		have, err := ProjectOrigin(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Empty(t, src)
+		assert.Empty(t, have)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -427,14 +427,14 @@ func Test_ProjectOrigin(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		src, err := ProjectOrigin(ctx, prj.Root())
+		have, err := ProjectOrigin(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, prjkit.GitOrigin, src)
+		assert.Equal(t, prjkit.GitOrigin, have)
 	})
 
-	t.Run("config line exceeds scanner limit", func(t *testing.T) {
+	t.Run("error - config line exceeds scanner limit", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -444,30 +444,30 @@ func Test_ProjectOrigin(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		src, err := ProjectOrigin(ctx, prj.Root())
+		have, err := ProjectOrigin(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, bufio.ErrTooLong, err)
-		assert.Empty(t, src)
+		assert.Empty(t, have)
 	})
 }
 
 func Test_FirstHash(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		hash, err := FirstHash(ctx, prj.Root())
+		have, err := FirstHash(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Empty(t, hash)
+		assert.Empty(t, have)
 	})
 
-	t.Run("empty git repo", func(t *testing.T) {
+	t.Run("error - empty git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -475,11 +475,11 @@ func Test_FirstHash(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		hash, err := FirstHash(ctx, prj.Root())
+		have, err := FirstHash(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrEmptyRepo, err)
-		assert.Empty(t, hash)
+		assert.Empty(t, have)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -493,30 +493,30 @@ func Test_FirstHash(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		hash, err := FirstHash(ctx, prj.Root())
+		have, err := FirstHash(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, cm.Hash, hash)
+		assert.Equal(t, cm.Hash, have)
 	})
 }
 
 func Test_LatestHash(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		hash, err := LatestHash(ctx, prj.Root())
+		have, err := LatestHash(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Empty(t, hash)
+		assert.Empty(t, have)
 	})
 
-	t.Run("empty git repo", func(t *testing.T) {
+	t.Run("error - empty git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -524,11 +524,11 @@ func Test_LatestHash(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		hash, err := LatestHash(ctx, prj.Root())
+		have, err := LatestHash(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrEmptyRepo, err)
-		assert.Empty(t, hash)
+		assert.Empty(t, have)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -542,11 +542,11 @@ func Test_LatestHash(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		hash, err := LatestHash(ctx, prj.Root())
+		have, err := LatestHash(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, cm.Hash, hash)
+		assert.Equal(t, cm.Hash, have)
 	})
 
 	t.Run("short core abbrev setting", func(t *testing.T) {
@@ -563,27 +563,28 @@ func Test_LatestHash(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
+
 		want := prj.ExeStdout("git", "rev-parse", "--short=7", "HEAD")
 		assert.Equal(t, strings.TrimSpace(want), have)
 	})
 }
 
 func Test_RevDate(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		tim, err := RevDate(ctx, prj.Root(), "0000")
+		have, err := RevDate(ctx, prj.Root(), "0000")
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Zero(t, tim)
+		assert.Zero(t, have)
 	})
 
-	t.Run("empty git repo", func(t *testing.T) {
+	t.Run("error - empty git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -591,11 +592,11 @@ func Test_RevDate(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tim, err := RevDate(ctx, prj.Root(), "0000")
+		have, err := RevDate(ctx, prj.Root(), "0000")
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrUnkRev, err)
-		assert.Zero(t, tim)
+		assert.Zero(t, have)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -609,19 +610,18 @@ func Test_RevDate(t *testing.T) {
 		cm2 := prj.GitCommit("")
 		prj.Close()
 
+		first := must.Value(RevDate(ctx, prj.Root(), cm1.Hash))
+
 		// --- When ---
-		tim1, err1 := RevDate(ctx, prj.Root(), cm1.Hash)
-		tim2, err2 := RevDate(ctx, prj.Root(), cm2.Hash)
+		have, err := RevDate(ctx, prj.Root(), cm2.Hash)
 
 		// --- Then ---
-		assert.NoError(t, err1)
-		assert.NoError(t, err2)
-		assert.True(t, tim1.Before(tim2))
-		assert.Within(t, time.Now(), "3s", tim1)
-		assert.Within(t, time.Now(), "3s", tim2)
+		assert.NoError(t, err)
+		assert.True(t, first.Before(have))
+		assert.Within(t, time.Now(), "3s", have)
 	})
 
-	t.Run("not existing revision", func(t *testing.T) {
+	t.Run("error - not existing revision", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -630,11 +630,11 @@ func Test_RevDate(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tim, err := RevDate(ctx, prj.Root(), "not_existing")
+		have, err := RevDate(ctx, prj.Root(), "not_existing")
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrUnkRev, err)
-		assert.Zero(t, tim)
+		assert.Zero(t, have)
 	})
 
 	t.Run("annotated tag", func(t *testing.T) {
@@ -692,18 +692,18 @@ func Test_RevDate(t *testing.T) {
 }
 
 func Test_ClosestTag(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "")
+		have, err := ClosestTag(ctx, prj.Root(), "")
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Empty(t, tag)
+		assert.Empty(t, have)
 	})
 
 	t.Run("empty git repo", func(t *testing.T) {
@@ -714,11 +714,11 @@ func Test_ClosestTag(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "")
+		have, err := ClosestTag(ctx, prj.Root(), "")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Empty(t, tag)
+		assert.Empty(t, have)
 	})
 
 	t.Run("one commit no tags", func(t *testing.T) {
@@ -730,11 +730,11 @@ func Test_ClosestTag(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "")
+		have, err := ClosestTag(ctx, prj.Root(), "")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Empty(t, tag)
+		assert.Empty(t, have)
 	})
 
 	t.Run("one commit and startRev used", func(t *testing.T) {
@@ -747,11 +747,11 @@ func Test_ClosestTag(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "v0.1.0")
+		have, err := ClosestTag(ctx, prj.Root(), "v0.1.0")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0", tag)
+		assert.Equal(t, "v0.1.0", have)
 	})
 
 	t.Run("HEAD tagged", func(t *testing.T) {
@@ -764,11 +764,11 @@ func Test_ClosestTag(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "")
+		have, err := ClosestTag(ctx, prj.Root(), "")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0", tag)
+		assert.Equal(t, "v0.1.0", have)
 	})
 
 	t.Run("one commit after tag", func(t *testing.T) {
@@ -783,11 +783,11 @@ func Test_ClosestTag(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "")
+		have, err := ClosestTag(ctx, prj.Root(), "")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0", tag)
+		assert.Equal(t, "v0.1.0", have)
 	})
 
 	t.Run("dirty work dir", func(t *testing.T) {
@@ -801,29 +801,11 @@ func Test_ClosestTag(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "")
+		have, err := ClosestTag(ctx, prj.Root(), "")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0", tag)
-	})
-
-	t.Run("an untracked file makes the tree dirty", func(t *testing.T) {
-		// --- Given ---
-		ctx := t.Context()
-		prj := prjkit.New(t, t.TempDir())
-		prj.CreateFileWith("file0", "file0.txt")
-		prj.GitInitAddAll()
-		prj.Exe("git", "tag", "v0.1.0")
-		prj.CreateFileWith("stray", "untracked.txt")
-		prj.Close()
-
-		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
-
-		// --- Then ---
-		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0-dirty", tag)
+		assert.Equal(t, "v0.1.0", have)
 	})
 
 	t.Run("one commit after tag and dirty work dir", func(t *testing.T) {
@@ -839,11 +821,11 @@ func Test_ClosestTag(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "")
+		have, err := ClosestTag(ctx, prj.Root(), "")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0", tag)
+		assert.Equal(t, "v0.1.0", have)
 	})
 
 	t.Run("starting at", func(t *testing.T) {
@@ -861,11 +843,11 @@ func Test_ClosestTag(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := ClosestTag(ctx, prj.Root(), "v0.2.0")
+		have, err := ClosestTag(ctx, prj.Root(), "v0.2.0")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0", tag)
+		assert.Equal(t, "v0.1.0", have)
 	})
 
 	t.Run("error - unknown start revision", func(t *testing.T) {
@@ -946,22 +928,58 @@ func Test_WithMatch(t *testing.T) {
 	})
 }
 
+func Test_isSemVer_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		tag  string
+		want bool
+	}{
+		{"with v prefix", "v1.2.3", true},
+		{"without v prefix", "1.2.3", true},
+		{"zero version", "v0.0.0", true},
+		{"pre-release", "v1.0.0-rc.1", true},
+		{"build metadata", "v1.0.0+g9ab3d41", true},
+		{"pre-release and build", "v1.0.0-rc.1+g9ab3d41", true},
+		{"describe output", "v1.2.0-3-g9ab3d41", true},
+		{"describe output dirty", "v1.2.0-3-g9ab3d41-dirty", true},
+		{"moving pointer", "nightly", false},
+		{"build stamp", "build-42", false},
+		{"hierarchical name", "rel/v1.0.0", false},
+		{"date stamp", "2026-01-15", false},
+		{"missing patch", "v1.2", false},
+		{"leading zero", "v1.02.3", false},
+		{"empty", "", false},
+		{"trailing dash", "v1.2.3-", false},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			have := isSemVer(tc.tag)
+
+			// --- Then ---
+			assert.Equal(t, tc.want, have)
+		})
+	}
+}
+
 func Test_Describe(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
+		have, err := Describe(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Empty(t, tag)
+		assert.Empty(t, have)
 	})
 
-	t.Run("empty git repo", func(t *testing.T) {
+	t.Run("error - empty git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -969,11 +987,11 @@ func Test_Describe(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
+		have, err := Describe(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrEmptyRepo, err)
-		assert.Empty(t, tag)
+		assert.Empty(t, have)
 	})
 
 	t.Run("one commit no tags", func(t *testing.T) {
@@ -985,11 +1003,11 @@ func Test_Describe(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
+		have, err := Describe(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.0.0-1-g"+cm.Hash, tag)
+		assert.Equal(t, "v0.0.0-1-g"+cm.Hash, have)
 	})
 
 	t.Run("no tags and dirty work dir", func(t *testing.T) {
@@ -1002,11 +1020,11 @@ func Test_Describe(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
+		have, err := Describe(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.0.0-1-g"+cm.Hash+"-dirty", tag)
+		assert.Equal(t, "v0.0.0-1-g"+cm.Hash+"-dirty", have)
 	})
 
 	t.Run("HEAD tagged", func(t *testing.T) {
@@ -1019,11 +1037,11 @@ func Test_Describe(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
+		have, err := Describe(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0", tag)
+		assert.Equal(t, "v0.1.0", have)
 	})
 
 	t.Run("one commit after tag", func(t *testing.T) {
@@ -1040,12 +1058,12 @@ func Test_Describe(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
+		have, err := Describe(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		exp := fmt.Sprintf("v1.2.0-1-g%s", prj.GitHash())
-		assert.Equal(t, exp, tag)
+		want := fmt.Sprintf("v1.2.0-1-g%s", prj.GitHash())
+		assert.Equal(t, want, have)
 	})
 
 	t.Run("closest tag is not a version", func(t *testing.T) {
@@ -1096,11 +1114,29 @@ func Test_Describe(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
+		have, err := Describe(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.1.0-dirty", tag)
+		assert.Equal(t, "v0.1.0-dirty", have)
+	})
+
+	t.Run("an untracked file makes the tree dirty", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "tag", "v0.1.0")
+		prj.CreateFileWith("stray", "untracked.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := Describe(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.1.0-dirty", have)
 	})
 
 	t.Run("one commit after tag and dirty work dir", func(t *testing.T) {
@@ -1116,11 +1152,11 @@ func Test_Describe(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		tag, err := Describe(ctx, prj.Root())
+		have, err := Describe(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, fmt.Sprintf("v0.1.0-1-g%s-dirty", cm.Hash), tag)
+		assert.Equal(t, fmt.Sprintf("v0.1.0-1-g%s-dirty", cm.Hash), have)
 	})
 
 	t.Run("match skips non-version tag", func(t *testing.T) {
@@ -1244,6 +1280,47 @@ func Test_description_String_tabular(t *testing.T) {
 
 			// --- Then ---
 			assert.Equal(t, tc.want, have)
+		})
+	}
+}
+
+func Test_splitDescribe_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		desc  string
+		wTag  string
+		wCnt  string
+		wHash string
+		wOK   bool
+	}{
+		{"on tag", "v1.2.0-0-g9ab3d41", "v1.2.0", "0", "9ab3d41", true},
+		{"past tag", "v1.2.0-3-g9ab3d41", "v1.2.0", "3", "9ab3d41", true},
+		{
+			"tag holding a dash",
+			"rel-1.0-2-g9ab3d41", "rel-1.0", "2", "9ab3d41", true,
+		},
+		{
+			"tag holding -g",
+			"v1.0.0-gamma-2-g9ab3d41", "v1.0.0-gamma", "2", "9ab3d41", true,
+		},
+		{"no hash marker", "v1.2.0", "", "", "", false},
+		{"no count field", "v1.2.0-g9ab3d41", "", "", "", false},
+		{"hash not hex", "v1.2.0-3-gzzzzzzz", "", "", "", false},
+		{"count not a number", "v1.2.0-x-g9ab3d41", "", "", "", false},
+		{"no tag part", "-3-g9ab3d41", "", "", "", false},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			hTag, hCnt, hHash, hOK := splitDescribe(tc.desc)
+
+			// --- Then ---
+			assert.Equal(t, tc.wOK, hOK)
+			assert.Equal(t, tc.wTag, hTag)
+			assert.Equal(t, tc.wCnt, hCnt)
+			assert.Equal(t, tc.wHash, hHash)
 		})
 	}
 }
@@ -1907,21 +1984,21 @@ func Test_Messages(t *testing.T) {
 }
 
 func Test_ChangeLog(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		cl, err := ChangeLog(ctx, prj.Root(), "0.0.0")
+		have, err := ChangeLog(ctx, prj.Root(), "0.0.0")
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Empty(t, cl)
+		assert.Empty(t, have)
 	})
 
-	t.Run("unknown base revision", func(t *testing.T) {
+	t.Run("error - unknown base revision", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -1930,11 +2007,11 @@ func Test_ChangeLog(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		cl, err := ChangeLog(ctx, prj.Root(), "0.0.0")
+		have, err := ChangeLog(ctx, prj.Root(), "0.0.0")
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrUnkTag, err)
-		assert.Empty(t, cl)
+		assert.Empty(t, have)
 	})
 
 	t.Run("base revision equal to HEAD", func(t *testing.T) {
@@ -1947,11 +2024,11 @@ func Test_ChangeLog(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		cl, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
+		have, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Empty(t, cl)
+		assert.Empty(t, have)
 	})
 
 	t.Run("one commit ahead of base revision", func(t *testing.T) {
@@ -1966,15 +2043,14 @@ func Test_ChangeLog(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		cl, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
+		have, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
 
 		// --- Then ---
 		assert.NoError(t, err)
-
-		exp := []string{
+		want := []string{
 			"test commit 2",
 		}
-		assert.Equal(t, exp, cl)
+		assert.Equal(t, want, have)
 	})
 
 	t.Run("multiple commits ahead of base revision", func(t *testing.T) {
@@ -1993,17 +2069,16 @@ func Test_ChangeLog(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		cl, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
+		have, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
 
 		// --- Then ---
 		assert.NoError(t, err)
-
-		exp := []string{
+		want := []string{
 			"test commit 2",
 			"test commit 3",
 			"test commit 4",
 		}
-		assert.Equal(t, exp, cl)
+		assert.Equal(t, want, have)
 	})
 
 	t.Run("changelog since repo start", func(t *testing.T) {
@@ -2022,18 +2097,17 @@ func Test_ChangeLog(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		cl, err := ChangeLog(ctx, prj.Root(), "")
+		have, err := ChangeLog(ctx, prj.Root(), "")
 
 		// --- Then ---
 		assert.NoError(t, err)
-
-		exp := []string{
+		want := []string{
 			"Initial commit.",
 			"test commit 2",
 			"test commit 3",
 			"test commit 4",
 		}
-		assert.Equal(t, exp, cl)
+		assert.Equal(t, want, have)
 	})
 
 	t.Run("multi paragraph commit messages", func(t *testing.T) {
@@ -2054,16 +2128,15 @@ func Test_ChangeLog(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		cl, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
+		have, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
 
 		// --- Then ---
 		assert.NoError(t, err)
-
-		exp := []string{
+		want := []string{
 			"CM2 Paragraph 1 Sentence 1. Paragraph 1 Sentence 2.",
 			"CM3 Paragraph 1 Sentence 1. Paragraph 1 Sentence 2.",
 		}
-		assert.Equal(t, exp, cl)
+		assert.Equal(t, want, have)
 	})
 
 	t.Run("base revision on a diverged branch", func(t *testing.T) {
@@ -2163,7 +2236,7 @@ func Test_Init(t *testing.T) {
 		assert.Contain(t, "No commits yet", prj.ExeStdout("git", "status"))
 	})
 
-	t.Run("error", func(t *testing.T) {
+	t.Run("error - not existing directory", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -2178,7 +2251,7 @@ func Test_Init(t *testing.T) {
 }
 
 func Test_AddRemote(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -2218,11 +2291,12 @@ func Test_AddRemote(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
+
 		want := "" +
 			"origin\tgit@example.com:comp/project.git (fetch)\n" +
 			"origin\tgit@example.com:comp/project.git (push)\n"
-		have := prj.ExeStdout("git", "remote", "-v")
-		assert.Equal(t, want, have)
+		remotes := prj.ExeStdout("git", "remote", "-v")
+		assert.Equal(t, want, remotes)
 	})
 
 	t.Run("error - remote looks like an option", func(t *testing.T) {
@@ -2241,18 +2315,18 @@ func Test_AddRemote(t *testing.T) {
 }
 
 func Test_IsClean(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		clean, err := IsClean(ctx, prj.Root())
+		have, err := IsClean(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.False(t, clean)
+		assert.False(t, have)
 	})
 
 	t.Run("initialized", func(t *testing.T) {
@@ -2263,11 +2337,11 @@ func Test_IsClean(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		clean, err := IsClean(ctx, prj.Root())
+		have, err := IsClean(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.True(t, clean)
+		assert.True(t, have)
 	})
 
 	t.Run("not added file", func(t *testing.T) {
@@ -2279,11 +2353,11 @@ func Test_IsClean(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		clean, err := IsClean(ctx, prj.Root())
+		have, err := IsClean(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.False(t, clean)
+		assert.False(t, have)
 	})
 
 	t.Run("added not committed file", func(t *testing.T) {
@@ -2298,11 +2372,11 @@ func Test_IsClean(t *testing.T) {
 		assert.NoError(t, Init(ctx, prj.Root()))
 
 		// --- When ---
-		clean, err := IsClean(ctx, prj.Root())
+		have, err := IsClean(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.False(t, clean)
+		assert.False(t, have)
 	})
 
 	t.Run("added and committed file", func(t *testing.T) {
@@ -2316,27 +2390,27 @@ func Test_IsClean(t *testing.T) {
 		assert.NoError(t, Init(ctx, prj.Root()))
 
 		// --- When ---
-		clean, err := IsClean(ctx, prj.Root())
+		have, err := IsClean(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.True(t, clean)
+		assert.True(t, have)
 	})
 }
 
 func Test_WorkTreeStatus(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
 
 		// --- When ---
-		state, err := WorkTreeStatus(ctx, prj.Root())
+		have, err := WorkTreeStatus(ctx, prj.Root())
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrNotRepo, err)
-		assert.Empty(t, state)
+		assert.Empty(t, have)
 	})
 
 	t.Run("initialized", func(t *testing.T) {
@@ -2347,11 +2421,11 @@ func Test_WorkTreeStatus(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		clean, err := WorkTreeStatus(ctx, prj.Root())
+		have, err := WorkTreeStatus(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "clean", clean)
+		assert.Equal(t, "clean", have)
 	})
 
 	t.Run("not added file", func(t *testing.T) {
@@ -2363,11 +2437,11 @@ func Test_WorkTreeStatus(t *testing.T) {
 		prj.Close()
 
 		// --- When ---
-		clean, err := WorkTreeStatus(ctx, prj.Root())
+		have, err := WorkTreeStatus(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "dirty", clean)
+		assert.Equal(t, "dirty", have)
 	})
 
 	t.Run("added not committed file", func(t *testing.T) {
@@ -2382,11 +2456,11 @@ func Test_WorkTreeStatus(t *testing.T) {
 		assert.NoError(t, Init(ctx, prj.Root()))
 
 		// --- When ---
-		clean, err := WorkTreeStatus(ctx, prj.Root())
+		have, err := WorkTreeStatus(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "dirty", clean)
+		assert.Equal(t, "dirty", have)
 	})
 
 	t.Run("added and committed file", func(t *testing.T) {
@@ -2400,16 +2474,16 @@ func Test_WorkTreeStatus(t *testing.T) {
 		assert.NoError(t, Init(ctx, prj.Root()))
 
 		// --- When ---
-		clean, err := WorkTreeStatus(ctx, prj.Root())
+		have, err := WorkTreeStatus(ctx, prj.Root())
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "clean", clean)
+		assert.Equal(t, "clean", have)
 	})
 }
 
 func Test_Add(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -2436,6 +2510,7 @@ func Test_Add(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
+
 		out := prj.ExeStdout("git", "status", "-s")
 		assert.Equal(t, "A  file0.txt\nA  file1.txt\n", out)
 	})
@@ -2454,13 +2529,14 @@ func Test_Add(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
+
 		out := prj.ExeStdout("git", "status", "-s")
 		assert.Equal(t, "A  -A\n?? file0.txt\n", out)
 	})
 }
 
 func Test_AddAll(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -2494,7 +2570,7 @@ func Test_AddAll(t *testing.T) {
 }
 
 func Test_Commit(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -2507,7 +2583,7 @@ func Test_Commit(t *testing.T) {
 		assert.ErrorIs(t, ErrNotRepo, err)
 	})
 
-	t.Run("empty commit message", func(t *testing.T) {
+	t.Run("error - empty commit message", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -2553,7 +2629,7 @@ func Test_Commit(t *testing.T) {
 }
 
 func Test_Tag(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -2597,6 +2673,7 @@ func Test_Tag(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
+
 		out := prj.ExeStdout("git", "tag", "-n")
 		assert.Equal(t, "v0.0.0          tag message\n", out)
 	})
@@ -2618,7 +2695,7 @@ func Test_Tag(t *testing.T) {
 }
 
 func Test_Push(t *testing.T) {
-	t.Run("not git repo", func(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -2771,7 +2848,7 @@ func Test_GetFile(t *testing.T) {
 		assert.NoFileExist(t, dst)
 	})
 
-	t.Run("invalid branch error", func(t *testing.T) {
+	t.Run("error - invalid branch", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		badBranch := randkit.Str()
@@ -2785,7 +2862,7 @@ func Test_GetFile(t *testing.T) {
 		assert.NoFileExist(t, dst)
 	})
 
-	t.Run("invalid repo file error", func(t *testing.T) {
+	t.Run("error - invalid repo file", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		dst := filepath.Join(t.TempDir(), "from-remote.txt")
@@ -2798,7 +2875,7 @@ func Test_GetFile(t *testing.T) {
 		assert.NoFileExist(t, dst)
 	})
 
-	t.Run("invalid destination error", func(t *testing.T) {
+	t.Run("error - invalid destination", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		dst := filepath.Join(t.TempDir(), "not_existing", "from-remote.txt")
@@ -2814,7 +2891,7 @@ func Test_GetFile(t *testing.T) {
 		assert.NoFileExist(t, dst)
 	})
 
-	t.Run("destination is a directory error", func(t *testing.T) {
+	t.Run("error - destination is a directory", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		dst := t.TempDir() // Existing directory makes os.Create fail.
@@ -2828,7 +2905,7 @@ func Test_GetFile(t *testing.T) {
 		assert.Equal(t, dst, e.Path)
 	})
 
-	t.Run("very short deadline", func(t *testing.T) {
+	t.Run("error - very short deadline", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		ctxTO, cxlTO := context.WithTimeout(ctx, time.Millisecond)
@@ -3219,7 +3296,7 @@ func Test_firstLine(t *testing.T) {
 }
 
 func Test_gitErrorOr(t *testing.T) {
-	t.Run("message not covered by cases", func(t *testing.T) {
+	t.Run("error - unmapped message", func(t *testing.T) {
 		// --- When ---
 		err := gitErrorOr("message not covered by cases", nil)
 
@@ -3228,7 +3305,7 @@ func Test_gitErrorOr(t *testing.T) {
 		assert.ErrorContain(t, "message not covered by cases", err)
 	})
 
-	t.Run("message not covered by cases keeps the cause", func(t *testing.T) {
+	t.Run("error - unmapped message keeps the cause", func(t *testing.T) {
 		// --- When ---
 		err := gitErrorOr("message not covered by cases", ErrTest)
 
@@ -3238,7 +3315,7 @@ func Test_gitErrorOr(t *testing.T) {
 		assert.ErrorContain(t, "message not covered by cases", err)
 	})
 
-	t.Run("empty message", func(t *testing.T) {
+	t.Run("error - empty message", func(t *testing.T) {
 		// --- When ---
 		err := gitErrorOr("", ErrTest)
 
@@ -3246,7 +3323,7 @@ func Test_gitErrorOr(t *testing.T) {
 		assert.ErrorIs(t, ErrTest, err)
 	})
 
-	t.Run("empty message nil err", func(t *testing.T) {
+	t.Run("error - empty message nil err", func(t *testing.T) {
 		// --- When ---
 		err := gitErrorOr("", nil)
 
@@ -3375,83 +3452,6 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 
 			// --- Then ---
 			assert.ErrorIs(t, tc.err, err)
-		})
-	}
-}
-
-func Test_isSemVer(t *testing.T) {
-	tt := []struct {
-		testN string
-
-		tag  string
-		want bool
-	}{
-		{"with v prefix", "v1.2.3", true},
-		{"without v prefix", "1.2.3", true},
-		{"zero version", "v0.0.0", true},
-		{"pre-release", "v1.0.0-rc.1", true},
-		{"build metadata", "v1.0.0+g9ab3d41", true},
-		{"pre-release and build", "v1.0.0-rc.1+g9ab3d41", true},
-		{"describe output", "v1.2.0-3-g9ab3d41", true},
-		{"describe output dirty", "v1.2.0-3-g9ab3d41-dirty", true},
-		{"moving pointer", "nightly", false},
-		{"build stamp", "build-42", false},
-		{"hierarchical name", "rel/v1.0.0", false},
-		{"date stamp", "2026-01-15", false},
-		{"missing patch", "v1.2", false},
-		{"leading zero", "v1.02.3", false},
-		{"empty", "", false},
-		{"trailing dash", "v1.2.3-", false},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.testN, func(t *testing.T) {
-			// --- When ---
-			have := isSemVer(tc.tag)
-
-			// --- Then ---
-			assert.Equal(t, tc.want, have)
-		})
-	}
-}
-
-func Test_splitDescribe(t *testing.T) {
-	tt := []struct {
-		testN string
-
-		desc  string
-		wTag  string
-		wCnt  string
-		wHash string
-		wOK   bool
-	}{
-		{"on tag", "v1.2.0-0-g9ab3d41", "v1.2.0", "0", "9ab3d41", true},
-		{"past tag", "v1.2.0-3-g9ab3d41", "v1.2.0", "3", "9ab3d41", true},
-		{
-			"tag holding a dash",
-			"rel-1.0-2-g9ab3d41", "rel-1.0", "2", "9ab3d41", true,
-		},
-		{
-			"tag holding -g",
-			"v1.0.0-gamma-2-g9ab3d41", "v1.0.0-gamma", "2", "9ab3d41", true,
-		},
-		{"no hash marker", "v1.2.0", "", "", "", false},
-		{"no count field", "v1.2.0-g9ab3d41", "", "", "", false},
-		{"hash not hex", "v1.2.0-3-gzzzzzzz", "", "", "", false},
-		{"count not a number", "v1.2.0-x-g9ab3d41", "", "", "", false},
-		{"no tag part", "-3-g9ab3d41", "", "", "", false},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.testN, func(t *testing.T) {
-			// --- When ---
-			tag, cnt, hash, ok := splitDescribe(tc.desc)
-
-			// --- Then ---
-			assert.Equal(t, tc.wOK, ok)
-			assert.Equal(t, tc.wTag, tag)
-			assert.Equal(t, tc.wCnt, cnt)
-			assert.Equal(t, tc.wHash, hash)
 		})
 	}
 }

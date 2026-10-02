@@ -42,7 +42,7 @@ func Test_Bare(t *testing.T) {
 		assert.Equal(t, tspy.GetTempDir(0), repo)
 	})
 
-	t.Run("not existing directory", func(t *testing.T) {
+	t.Run("error - not existing directory", func(t *testing.T) {
 		// --- Given ---
 		dir := filepath.Join(t.TempDir(), "not_existing")
 
