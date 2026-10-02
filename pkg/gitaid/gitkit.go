@@ -718,6 +718,7 @@ func checkBump(bump string) error {
 	switch bump {
 	case "", BumpPatch, BumpMinor, BumpMajor:
 		return nil
+
 	default:
 		return fmt.Errorf("%s: %w", bump, ErrBadBump)
 	}
