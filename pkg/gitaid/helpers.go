@@ -14,7 +14,6 @@ import (
 // firstLine returns the first trimmed line from a reader.
 func firstLine(r io.Reader) string {
 	scn := bufio.NewScanner(r)
-	scn.Split(bufio.ScanLines)
 	for scn.Scan() {
 		return strings.TrimSpace(scn.Text())
 	}
