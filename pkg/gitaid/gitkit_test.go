@@ -2647,7 +2647,7 @@ func Test_GetFile(t *testing.T) {
 		var e *fs.PathError
 		assert.ErrorAs(t, &e, err)
 		assert.Equal(t, filepath.Dir(dst), e.Path)
-		assert.True(t, os.IsNotExist(err))
+		assert.ErrorIs(t, fs.ErrNotExist, err)
 		assert.NoFileExist(t, dst)
 	})
 
@@ -2743,7 +2743,7 @@ func Test_GetFile(t *testing.T) {
 		err := GetFile(ctx, bare, branch, "file0.txt", dst)
 
 		// --- Then ---
-		assert.ErrorEqual(t, "exit status 1", err)
+		assert.ErrorEqual(t, "tar: exit status 1", err)
 		assert.NoFileExist(t, dst)
 	})
 

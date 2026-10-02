@@ -171,7 +171,7 @@ func ProjectOrigin(ctx context.Context, repo string) (string, error) {
 		}
 	}
 	if err = scn.Err(); err != nil {
-		return "", err
+		return "", fmt.Errorf("read git config: %w", err)
 	}
 	return "", nil
 }
@@ -653,10 +653,10 @@ func Derive(
 		pre += "." + StateDirty
 	}
 	if next, err = next.SetPrerelease(pre); err != nil {
-		return Version{}, err
+		return Version{}, fmt.Errorf("pre-release %s: %w", pre, err)
 	}
 	if next, err = next.SetMetadata("g" + ver.Hash); err != nil {
-		return Version{}, err
+		return Version{}, fmt.Errorf("build metadata g%s: %w", ver.Hash, err)
 	}
 	ver.Rev = next.Original()
 	return ver, nil
@@ -907,13 +907,13 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 	cmdTar.Stdin = r
 
 	if err := cmdDwl.Start(); err != nil {
-		return err
+		return fmt.Errorf("git archive: %w", err)
 	}
 	if err := cmdTar.Start(); err != nil {
 		// Unblock and reap the archive process before returning.
 		_ = w.Close()
 		_ = cmdDwl.Wait()
-		return err
+		return fmt.Errorf("tar: %w", err)
 	}
 	if err := cmdDwl.Wait(); err != nil {
 		// Unblock the tar reader (no more input) and reap it, otherwise it
@@ -929,22 +929,25 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 	}
 	if err := w.Close(); err != nil {
 		_ = cmdTar.Wait()
-		return err
+		return fmt.Errorf("archive pipe: %w", err)
 	}
 	if err := cmdTar.Wait(); err != nil {
-		return err
+		return fmt.Errorf("tar: %w", err)
 	}
 
 	//nolint:gosec // dst is the caller-controlled destination path.
 	fil, err := os.Create(dst)
 	if err != nil {
-		return err
+		return fmt.Errorf("destination: %w", err)
 	}
 	defer func() { _ = fil.Close() }()
 	if _, err = io.Copy(fil, soutTar); err != nil {
-		return err
+		return fmt.Errorf("destination: %w", err)
 	}
-	return fil.Close()
+	if err = fil.Close(); err != nil {
+		return fmt.Errorf("destination: %w", err)
+	}
+	return nil
 }
 
 // hashRx represents commit hash.
