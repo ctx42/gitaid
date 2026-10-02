@@ -2756,6 +2756,21 @@ func Test_Push(t *testing.T) {
 		assert.ErrorIs(t, ErrDetached, err)
 	})
 
+	t.Run("error - no origin", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		err := Push(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNoRemote, err)
+	})
+
 	t.Run("does not push lightweight tags", func(t *testing.T) {
 		// --- Given ---
 		bare := Bare(t)
@@ -3400,12 +3415,6 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 			"or path not in the working tree",
 			ErrTest,
 			ErrEmptyRepo,
-		},
-		{
-			"no push destination no remote",
-			"No configured push destination",
-			ErrTest,
-			ErrNoRemote,
 		},
 		{
 			"no such remote origin",

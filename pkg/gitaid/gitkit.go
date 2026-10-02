@@ -896,15 +896,22 @@ func Tag(ctx context.Context, repo, tag, msg string) error {
 
 // Push pushes the current branch and its annotated tags to the origin. A
 // context without a deadline is given one of 15s. It returns [ErrDetached]
-// when HEAD is detached, because then there is no branch to push. The empty
-// string used for repo means the current working directory.
+// when HEAD is detached, because then there is no branch to push, and
+// [ErrNoRemote] when the repository has no origin. The empty string used for
+// repo means the current working directory.
 func Push(ctx context.Context, repo string) error {
 	ctx, cxl := withTimeout(ctx, 15*time.Second)
 	defer cxl()
 	if _, err := Branch(ctx, repo); err != nil {
 		return err
 	}
-	args := []string{"push", "--follow-tags", "origin", "HEAD"}
+	// Pushing to a missing origin fails with a message that names a
+	// repository, not a remote, so the origin is resolved up front.
+	args := []string{"remote", "get-url", "origin"}
+	if _, err := runGitCmd(ctx, repo, args...); err != nil {
+		return err
+	}
+	args = []string{"push", "--follow-tags", "origin", "HEAD"}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
 	}
@@ -1127,9 +1134,6 @@ func gitErrorOr(msg string, err error) error {
 
 	case strings.Contains(msg, "or path not in the working tree"):
 		return ErrEmptyRepo
-
-	case strings.Contains(msg, "No configured push destination"):
-		return ErrNoRemote
 
 	case strings.Contains(msg, "No such remote 'origin'"):
 		return ErrNoRemote
