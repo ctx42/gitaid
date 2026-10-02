@@ -2336,7 +2336,7 @@ func Test_ChangeLog(t *testing.T) {
 		assert.ErrorIs(t, ErrBadArg, err)
 		assert.Nil(t, have)
 
-		assert.NoFileExist(t, out+"...HEAD")
+		assert.NoFileExist(t, out+"..HEAD")
 	})
 
 	t.Run("signatures shown in log", func(t *testing.T) {
