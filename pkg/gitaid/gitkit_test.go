@@ -726,6 +726,54 @@ func Test_ClosestTag(t *testing.T) {
 		assert.Equal(t, "v0.1.0", tag)
 	})
 
+	t.Run("error - unknown start revision", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := ClosestTag(ctx, prj.Root(), "v9.9.9")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.ErrorContain(t, "v9.9.9", err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - start revision in empty git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Close()
+
+		// --- When ---
+		have, err := ClosestTag(ctx, prj.Root(), "v0.1.0")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - start revision in not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := ClosestTag(ctx, prj.Root(), "v0.1.0")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
+
 	t.Run("error - start revision looks like an option", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()

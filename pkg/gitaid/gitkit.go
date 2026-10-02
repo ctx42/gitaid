@@ -209,13 +209,27 @@ func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
 
 // ClosestTag returns the closest tag reachable from the start revision. The
 // empty startRev means HEAD. If the returned tag is the same as the startRev,
-// it means this is the only revision in the repository.
+// it means this is the only revision in the repository. It returns [ErrUnkRev]
+// when startRev does not name a commit.
 func ClosestTag(ctx context.Context, repo, startRev string) (string, error) {
 	if err := noOption(startRev); err != nil {
 		return "", err
 	}
 	args := []string{"describe", "--tags", "--abbrev=0"}
 	if startRev != "" {
+		// Describing "startRev~" fails both for an unknown startRev and for
+		// a root commit, so the revision is verified up front and a failure
+		// below can only mean the latter.
+		vfy := []string{"rev-parse", "-q", "--verify", startRev + "^{commit}"}
+		if _, err := runGitCmd(ctx, repo, vfy...); err != nil {
+			// A quiet "--verify" exits 1 without a message when the
+			// revision is unknown; anything else is a real failure.
+			ee, ok := errors.AsType[*exec.ExitError](err)
+			if !ok || ee.ExitCode() != 1 {
+				return "", err
+			}
+			return "", fmt.Errorf("%w: %s", ErrUnkRev, startRev)
+		}
 		args = append(args, startRev+"~")
 	}
 	rev, err := runGitCmd(ctx, repo, args...)
