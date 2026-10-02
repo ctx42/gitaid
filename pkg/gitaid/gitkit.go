@@ -174,10 +174,11 @@ func FirstHash(ctx context.Context, repo string) (string, error) {
 	return firstLine(strings.NewReader(sout)), nil
 }
 
-// LatestHash returns the latest commit hash. If repository has no commits it
+// LatestHash returns the abbreviated hash of the latest commit, at least seven
+// characters long whatever core.abbrev says. If repository has no commits it
 // will return ErrEmptyRepo error.
 func LatestHash(ctx context.Context, repo string) (string, error) {
-	args := []string{"log", "--pretty=format:%h", "-n", "1"}
+	args := []string{"log", "--abbrev=7", "--pretty=format:%h", "-n", "1"}
 	sout, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		return "", err
@@ -420,7 +421,10 @@ func Describe(
 	// --dirty is not passed: it diffs the index against HEAD and cannot see
 	// untracked files, which count here. [IsClean] is the one definition, so
 	// the marker is appended below instead.
-	args := []string{"describe", "--long", "--tags"}
+	//
+	// --abbrev=7 overrides a shorter core.abbrev, which would yield a hash
+	// [IsHash] rejects and so a parse that falls back to no tag at all.
+	args := []string{"describe", "--long", "--tags", "--abbrev=7"}
 	if cfg.match != "" {
 		args = append(args, "--match", cfg.match)
 	}

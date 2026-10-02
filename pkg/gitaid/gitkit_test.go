@@ -424,6 +424,24 @@ func Test_LatestHash(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, cm.Hash, hash)
 	})
+
+	t.Run("short core abbrev setting", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "config", "core.abbrev", "5")
+		prj.Close()
+
+		// --- When ---
+		have, err := LatestHash(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		want := prj.ExeStdout("git", "rev-parse", "--short=7", "HEAD")
+		assert.Equal(t, strings.TrimSpace(want), have)
+	})
 }
 
 func Test_RevDate(t *testing.T) {
@@ -1029,6 +1047,26 @@ func Test_Describe(t *testing.T) {
 		// --- Then ---
 		assert.NoError(t, err)
 		assert.Equal(t, "v0.1.0", have)
+	})
+
+	t.Run("short core abbrev setting", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Exe("git", "config", "core.abbrev", "5")
+		prj.Close()
+
+		// --- When ---
+		have, err := Describe(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		hash := prj.ExeStdout("git", "rev-parse", "--short=7", "HEAD")
+		assert.Equal(t, "v0.1.0-1-g"+strings.TrimSpace(hash), have)
 	})
 
 	t.Run("error - bare repository", func(t *testing.T) {
