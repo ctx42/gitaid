@@ -2400,6 +2400,7 @@ func Test_Commit(t *testing.T) {
 		// --- Then ---
 		wMsg := "Aborting commit due to empty commit message"
 		assert.ErrorContain(t, wMsg, err)
+		assert.ErrorIs(t, ErrGit, err)
 	})
 
 	t.Run("commit", func(t *testing.T) {
@@ -2917,6 +2918,17 @@ func Test_gitErrorOr(t *testing.T) {
 		err := gitErrorOr("message not covered by cases", nil)
 
 		// --- Then ---
+		assert.ErrorIs(t, ErrGit, err)
+		assert.ErrorContain(t, "message not covered by cases", err)
+	})
+
+	t.Run("message not covered by cases keeps the cause", func(t *testing.T) {
+		// --- When ---
+		err := gitErrorOr("message not covered by cases", ErrTest)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrGit, err)
+		assert.ErrorIs(t, ErrTest, err)
 		assert.ErrorContain(t, "message not covered by cases", err)
 	})
 

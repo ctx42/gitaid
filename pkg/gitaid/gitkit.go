@@ -67,7 +67,8 @@ var (
 	// starts with "-", so git would read it as an option.
 	ErrBadArg = errors.New("argument looks like an option")
 
-	// ErrGit is an error returned when git binary encounters unknown error.
+	// ErrGit is an error returned when git binary encounters unknown error. It
+	// carries git's message and wraps the underlying exec error.
 	ErrGit = errors.New("git error")
 )
 
@@ -999,8 +1000,9 @@ func firstLine(r io.Reader) string {
 }
 
 // gitErrorOr takes error message printed by the git command and returns a
-// matching sentinel error or an error with the message text. If the message
-// text is empty err will be returned.
+// matching sentinel error or, for a message no case matches, [ErrGit] with the
+// message text and err wrapped. If the message text is empty err will be
+// returned.
 //
 //nolint:cyclop
 func gitErrorOr(msg string, err error) error {
@@ -1068,6 +1070,9 @@ func gitErrorOr(msg string, err error) error {
 		return ErrGit
 
 	default:
-		return errors.New(msg)
+		if err == nil {
+			return fmt.Errorf("%w: %s", ErrGit, msg)
+		}
+		return fmt.Errorf("%w: %s: %w", ErrGit, msg, err)
 	}
 }
