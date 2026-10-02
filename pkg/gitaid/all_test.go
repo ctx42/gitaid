@@ -4,6 +4,7 @@
 package gitaid
 
 import (
+	"archive/tar"
 	"bytes"
 	"errors"
 	"fmt"
@@ -107,4 +108,47 @@ func Bare(t tester.T, elems ...string) string {
 		return ""
 	}
 	return dir
+}
+
+// tarOf returns a tar stream holding hdrs in order, each regular file with the
+// content its tarFile header was given.
+func tarOf(t tester.T, hdrs ...*tar.Header) *bytes.Buffer {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	twr := tar.NewWriter(buf)
+	for _, hdr := range hdrs {
+		if err := twr.WriteHeader(hdr); err != nil {
+			t.Error(err)
+			return nil
+		}
+		if _, err := io.WriteString(twr, tarContent[hdr]); err != nil {
+			t.Error(err)
+			return nil
+		}
+	}
+	if err := twr.Close(); err != nil {
+		t.Error(err)
+		return nil
+	}
+	return buf
+}
+
+// tarContent holds the content tarFile gives each header it builds.
+var tarContent = map[*tar.Header]string{}
+
+// tarFile returns the header of a regular file with content for tarOf.
+func tarFile(name, content string) *tar.Header {
+	hdr := &tar.Header{
+		Name:     name,
+		Typeflag: tar.TypeReg,
+		Mode:     0o644,
+		Size:     int64(len(content)),
+	}
+	tarContent[hdr] = content
+	return hdr
+}
+
+// tarDir returns the header of a directory for tarOf.
+func tarDir(name string) *tar.Header {
+	return &tar.Header{Name: name, Typeflag: tar.TypeDir, Mode: 0o755}
 }

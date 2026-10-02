@@ -11,6 +11,7 @@
 package gitaid
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
 	"context"
@@ -19,6 +20,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -54,6 +56,10 @@ var (
 	// ErrUnkFile is an error returned when file or directory does not exist
 	// in the repository.
 	ErrUnkFile = errors.New("file not found")
+
+	// ErrNotFile is returned when a path names a directory, a symlink, or
+	// anything else that is not a regular file.
+	ErrNotFile = errors.New("not a regular file")
 
 	// ErrNotClean is an error returned when working directory has untracked
 	// files or not committed changes.
@@ -896,7 +902,9 @@ func Push(ctx context.Context, repo string) error {
 // GetFile gets a file from given repository, branch or tag, source path and
 // stores it in dst. When deadline on the context is not set it will be set to
 // 10s. The empty string used for repo directory means current working
-// directory.
+// directory, and a relative repo path is resolved against it too. It returns
+// [ErrUnkFile] when src does not exist and [ErrNotFile] when src names a
+// directory or anything else that is not a regular file.
 func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 	if err := noOption(branch, src); err != nil {
 		return err
@@ -911,96 +919,85 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 		ctx, cxl = context.WithTimeout(ctx, 10*time.Second)
 		defer cxl()
 	}
-
-	remote := fmt.Sprintf("--remote=%s", repo)
-	argsDwl := []string{"archive", remote, "--format=tar", branch, src}
-	eoutDwl := &bytes.Buffer{}
-	cmdDwl := exec.CommandContext(ctx, "git", argsDwl...)
-	cmdDwl.Stderr = eoutDwl
-	cmdDwl.Dir = filepath.Dir(dst)
-	cmdDwl.WaitDelay = waitDelay
-
-	soutTar, eoutTar := &bytes.Buffer{}, &bytes.Buffer{}
-	cmdTar := exec.CommandContext(ctx, "tar", "-xO")
-	cmdTar.Stdout = soutTar
-	cmdTar.Stderr = eoutTar
-	cmdTar.Dir = filepath.Dir(dst)
-	cmdTar.WaitDelay = waitDelay
-
-	// An OS pipe hands each process its own end, so when tar quits early the
-	// archive gets EPIPE and exits instead of blocking on a reader that is
-	// gone; with an io.Pipe a copying goroutine would wait forever.
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		return fmt.Errorf("archive pipe: %w", err)
+	if repo == "" {
+		repo = "."
 	}
-	cmdDwl.Stdout = pw
-	cmdTar.Stdin = pr
 
-	if err = cmdDwl.Start(); err != nil {
-		_, _ = pr.Close(), pw.Close()
+	args := []string{"archive", "--remote=" + repo, "--format=tar", branch, src}
+	eout := &bytes.Buffer{}
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Stderr = eout
+	cmd.WaitDelay = waitDelay
+	sout, err := cmd.StdoutPipe()
+	if err != nil {
 		return fmt.Errorf("git archive: %w", err)
 	}
-	if err = cmdTar.Start(); err != nil {
-		// Closing both ends makes the archive fail on its next write.
-		_, _ = pr.Close(), pw.Close()
-		_ = cmdDwl.Wait()
-		return fmt.Errorf("tar: %w", err)
+	if err = cmd.Start(); err != nil {
+		return fmt.Errorf("git archive: %w", err)
 	}
-	// The children hold their own copies; dropping ours lets tar see EOF
-	// once the archive exits and the archive see EPIPE once tar exits.
-	_, _ = pr.Close(), pw.Close()
-
-	errDwl, errTar := cmdDwl.Wait(), cmdTar.Wait()
-	if err = archiveErr(ctx, errDwl, eoutDwl, errTar, eoutTar); err != nil {
-		return err
+	data, errTar := extractFile(sout, src)
+	// Drain what was not read, so the archive never blocks writing.
+	_, _ = io.Copy(io.Discard, sout)
+	if err = cmd.Wait(); err != nil {
+		// A killed archive reports a signal, not why it was killed; the
+		// context knows whether it was canceled or ran out of time.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		if eout.Len() == 0 {
+			return fmt.Errorf("git archive: %w", err)
+		}
+		return gitErrorOr(eout.String(), err)
+	}
+	if errTar != nil {
+		return errTar
 	}
 
 	//nolint:gosec // dst is the caller-controlled destination path.
-	fil, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("destination: %w", err)
-	}
-	defer func() { _ = fil.Close() }()
-	if _, err = io.Copy(fil, soutTar); err != nil {
-		return fmt.Errorf("destination: %w", err)
-	}
-	if err = fil.Close(); err != nil {
+	if err = os.WriteFile(dst, data, 0o644); err != nil {
 		return fmt.Errorf("destination: %w", err)
 	}
 	return nil
 }
 
-// archiveErr picks the error that explains a failed [GetFile] pipeline from
-// the results of its "git archive" and "tar" processes and their stderr.
-func archiveErr(
-	ctx context.Context,
-	errDwl error,
-	eoutDwl *bytes.Buffer,
-	errTar error,
-	eoutTar *bytes.Buffer,
-) error {
-
-	if errDwl == nil && errTar == nil {
-		return nil
-	}
-	// A killed process reports a signal, not why it was killed; the
-	// context knows whether it was canceled or ran out of time.
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return ctxErr
-	}
-	// An archive that explains itself failed first; one dying silently was
-	// most likely cut off by a tar that quit.
-	if errDwl != nil && eoutDwl.Len() > 0 {
-		return gitErrorOr(eoutDwl.String(), errDwl)
-	}
-	if errTar != nil {
-		if msg := strings.TrimSpace(eoutTar.String()); msg != "" {
-			return fmt.Errorf("tar: %s: %w", msg, errTar)
+// extractFile reads the tar stream r to its end and returns the content of
+// the regular file called name. It returns [ErrNotFile] when name is not a
+// regular file or other files sit below it, as they do for a directory, and
+// [ErrUnkFile] when the stream holds no entry called name.
+func extractFile(r io.Reader, name string) ([]byte, error) {
+	name = path.Clean(name)
+	var data []byte
+	var found, other bool
+	trd := tar.NewReader(r)
+	for {
+		hdr, err := trd.Next()
+		if errors.Is(err, io.EOF) {
+			break
 		}
-		return fmt.Errorf("tar: %w", errTar)
+		if err != nil {
+			return nil, fmt.Errorf("read archive: %w", err)
+		}
+		switch typ := hdr.Typeflag; {
+		case typ == tar.TypeDir || typ == tar.TypeXGlobalHeader:
+			continue
+
+		case typ == tar.TypeReg && hdr.Name == name:
+			if data, err = io.ReadAll(trd); err != nil {
+				return nil, fmt.Errorf("read archive: %w", err)
+			}
+			found = true
+
+		default:
+			other = true
+		}
 	}
-	return fmt.Errorf("git archive: %w", errDwl)
+	if other {
+		return nil, fmt.Errorf("%w: %s", ErrNotFile, name)
+	}
+	if !found {
+		return nil, fmt.Errorf("%w: %s", ErrUnkFile, name)
+	}
+	return data, nil
 }
 
 // hashRx represents commit hash.

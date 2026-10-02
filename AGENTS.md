@@ -20,8 +20,8 @@ go test ./pkg/gitkit -run Test_IsRepo/success   # run a single subtest
 golangci-lint run                               # lint (config lives in tmp/.golangci.yml)
 ```
 
-Tests exec the real `git` (and `tar`) binaries against throwaway repos created
-in `t.TempDir()`, so `git` must be installed and on `PATH`.
+Tests exec the real `git` binary against throwaway repos created in
+`t.TempDir()`, so `git` must be installed and on `PATH`.
 
 ## Architecture
 
@@ -45,10 +45,10 @@ The entire library is the single package `pkg/gitkit`:
    errors — callers rely on `errors.Is`. Because the mapping keys on git's
    human-readable messages, it is inherently git-version-sensitive.
 
-2. **`runGitCmd` is the only exec path** (except `GetFile`, which pipes
-   `git archive | tar -xO` to fetch a single file from a remote without a full
-   clone, and manages its own timeout/`WaitDelay`). Prefer routing new commands
-   through `runGitCmd`.
+2. **`runGitCmd` is the only exec path** (except `GetFile`, which streams
+   `git archive` through `archive/tar` to fetch a single file from a remote
+   without a full clone, and manages its own timeout/`WaitDelay`). Prefer
+   routing new commands through `runGitCmd`.
 
 ## Testing conventions
 

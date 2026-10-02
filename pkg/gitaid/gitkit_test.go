@@ -4,13 +4,12 @@
 package gitaid
 
 import (
+	"archive/tar"
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -2678,6 +2677,8 @@ func Test_GetFile(t *testing.T) {
 	prj.Exe("git", "clone", bare, ".")
 	prj.Exe("git", "checkout", "-b", branch)
 	prj.CreateFileWith(branch, "file0.txt")
+	prj.CreateFileWith("a", "dir", "a.txt")
+	prj.CreateFileWith("b", "dir", "b.txt")
 	prj.GitCommit("", "test commit 1")
 	prj.Exe("git", "push", "origin", "HEAD")
 	prj.Close()
@@ -2744,12 +2745,12 @@ func Test_GetFile(t *testing.T) {
 		dst := filepath.Join(t.TempDir(), "not_existing", "from-remote.txt")
 
 		// --- When ---
-		err := GetFile(ctx, bare, branch, "bad.txt", dst)
+		err := GetFile(ctx, bare, branch, "file0.txt", dst)
 
 		// --- Then ---
 		var e *fs.PathError
 		assert.ErrorAs(t, &e, err)
-		assert.Equal(t, filepath.Dir(dst), e.Path)
+		assert.Equal(t, dst, e.Path)
 		assert.ErrorIs(t, fs.ErrNotExist, err)
 		assert.NoFileExist(t, dst)
 	})
@@ -2784,24 +2785,6 @@ func Test_GetFile(t *testing.T) {
 		assert.NoFileExist(t, dst)
 	})
 
-	t.Run("error - tar not on PATH", func(t *testing.T) {
-		// --- Given ---
-		ctx := t.Context()
-		// A PATH holding git alone makes looking up tar fail.
-		binDir := t.TempDir()
-		gitBin := must.Value(exec.LookPath("git"))
-		must.Nil(os.Symlink(gitBin, filepath.Join(binDir, "git")))
-		t.Setenv("PATH", binDir)
-		dst := filepath.Join(t.TempDir(), "from-remote.txt")
-
-		// --- When ---
-		err := GetFile(ctx, bare, branch, "file0.txt", dst)
-
-		// --- Then ---
-		assert.ErrorIs(t, exec.ErrNotFound, err)
-		assert.NoFileExist(t, dst)
-	})
-
 	t.Run("error - context canceled", func(t *testing.T) {
 		// --- Given ---
 		ctx, cxl := context.WithCancel(t.Context())
@@ -2827,59 +2810,45 @@ func Test_GetFile(t *testing.T) {
 		assert.NoFileExist(t, dst)
 	})
 
-	t.Run("error - tar exits without reading", func(t *testing.T) {
-		// --- Given ---
-		ctx, cxl := context.WithTimeout(t.Context(), 5*time.Second)
-		t.Cleanup(cxl)
-
-		// An archive larger than the pipe buffers cannot be written out
-		// before tar quits.
-		bigBare := Bare(t)
-		big := prjkit.New(t, t.TempDir())
-		big.Exe("git", "clone", bigBare, ".")
-		big.CreateFileWith(strings.Repeat("x", 1<<20), "big.txt")
-		big.GitCommit("", "big file")
-		big.Exe("git", "push", "origin", "HEAD")
-		big.Close()
-
-		// A tar that quits at once leaves the archive with no reader.
-		binDir := t.TempDir()
-		script := "#!/bin/sh\necho 'tar: broken input' >&2\nexit 2\n"
-		tar := oskit.Create(t, script, binDir, "tar")
-		must.Nil(os.Chmod(tar, 0o755))
-		sep := string(os.PathListSeparator)
-		t.Setenv("PATH", binDir+sep+os.Getenv("PATH"))
-
-		dst := filepath.Join(t.TempDir(), "from-remote.txt")
-
-		// --- When ---
-		err := GetFile(ctx, bigBare, "HEAD", "big.txt", dst)
-
-		// --- Then ---
-		assert.ErrorEqual(t, "tar: tar: broken input: exit status 2", err)
-		assert.NoFileExist(t, dst)
-	})
-
-	t.Run("error - tar fails", func(t *testing.T) {
+	t.Run("empty repo means the working directory", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
-
-		// A tar that drains the archive and exits 1 fails only after
-		// git archive has succeeded.
-		binDir := t.TempDir()
-		script := "#!/bin/sh\ncat >/dev/null\nexit 1\n"
-		tar := oskit.Create(t, script, binDir, "tar")
-		must.Nil(os.Chmod(tar, 0o755))
-		sep := string(os.PathListSeparator)
-		t.Setenv("PATH", binDir+sep+os.Getenv("PATH"))
-
+		t.Chdir(prj.Root())
 		dst := filepath.Join(t.TempDir(), "from-remote.txt")
 
 		// --- When ---
-		err := GetFile(ctx, bare, branch, "file0.txt", dst)
+		err := GetFile(ctx, "", branch, "file0.txt", dst)
 
 		// --- Then ---
-		assert.ErrorEqual(t, "tar: exit status 1", err)
+		assert.NoError(t, err)
+		assert.Equal(t, branch, oskit.ReadFileStr(t, dst))
+	})
+
+	t.Run("relative repo is from the working directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		t.Chdir(filepath.Dir(bare))
+		repo := filepath.Base(bare)
+		dst := filepath.Join(t.TempDir(), "from-remote.txt")
+
+		// --- When ---
+		err := GetFile(ctx, repo, branch, "file0.txt", dst)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, branch, oskit.ReadFileStr(t, dst))
+	})
+
+	t.Run("error - source is a directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		dst := filepath.Join(t.TempDir(), "from-remote.txt")
+
+		// --- When ---
+		err := GetFile(ctx, bare, branch, "dir", dst)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotFile, err)
 		assert.NoFileExist(t, dst)
 	})
 
@@ -2932,82 +2901,70 @@ func Test_GetFile(t *testing.T) {
 	})
 }
 
-func Test_archiveErr(t *testing.T) {
-	t.Run("both succeeded", func(t *testing.T) {
+func Test_extractFile(t *testing.T) {
+	t.Run("regular file", func(t *testing.T) {
 		// --- Given ---
-		ctx := t.Context()
-		eoutDwl, eoutTar := &bytes.Buffer{}, &bytes.Buffer{}
+		r := tarOf(t, tarDir("dir/"), tarFile("dir/a.txt", "a"))
 
 		// --- When ---
-		err := archiveErr(ctx, nil, eoutDwl, nil, eoutTar)
+		have, err := extractFile(r, "./dir/a.txt")
 
 		// --- Then ---
 		assert.NoError(t, err)
+		assert.Equal(t, "a", string(have))
 	})
 
-	t.Run("error - context done", func(t *testing.T) {
+	t.Run("error - directory with files", func(t *testing.T) {
 		// --- Given ---
-		ctx, cxl := context.WithCancel(t.Context())
-		cxl()
-		eoutDwl := bytes.NewBufferString("fatal: no such ref: x")
-		eoutTar := &bytes.Buffer{}
+		r := tarOf(t, tarDir("dir/"), tarFile("dir/a.txt", "a"))
 
 		// --- When ---
-		err := archiveErr(ctx, ErrTest, eoutDwl, nil, eoutTar)
+		have, err := extractFile(r, "dir")
 
 		// --- Then ---
-		assert.ErrorIs(t, context.Canceled, err)
+		assert.ErrorIs(t, ErrNotFile, err)
+		assert.Nil(t, have)
 	})
 
-	t.Run("error - archive explains itself", func(t *testing.T) {
+	t.Run("error - symlink", func(t *testing.T) {
 		// --- Given ---
-		ctx := t.Context()
-		eoutDwl := bytes.NewBufferString("remote: fatal: no such ref: x")
-		eoutTar := bytes.NewBufferString("tar: not a tar archive")
+		lnk := &tar.Header{
+			Name:     "a.txt",
+			Typeflag: tar.TypeSymlink,
+			Linkname: "b",
+		}
+		r := tarOf(t, lnk)
 
 		// --- When ---
-		err := archiveErr(ctx, ErrTest, eoutDwl, ErrTest, eoutTar)
+		have, err := extractFile(r, "a.txt")
 
 		// --- Then ---
-		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.ErrorIs(t, ErrNotFile, err)
+		assert.Nil(t, have)
 	})
 
-	t.Run("error - tar with message", func(t *testing.T) {
+	t.Run("error - no such entry", func(t *testing.T) {
 		// --- Given ---
-		ctx := t.Context()
-		eoutDwl := &bytes.Buffer{}
-		eoutTar := bytes.NewBufferString("tar: broken input\n")
+		r := tarOf(t, tarDir("dir/"))
 
 		// --- When ---
-		err := archiveErr(ctx, ErrTest, eoutDwl, ErrTest, eoutTar)
+		have, err := extractFile(r, "a.txt")
 
 		// --- Then ---
-		assert.ErrorEqual(t, "tar: tar: broken input: test error", err)
-		assert.ErrorIs(t, ErrTest, err)
+		assert.ErrorIs(t, ErrUnkFile, err)
+		assert.Nil(t, have)
 	})
 
-	t.Run("error - tar without message", func(t *testing.T) {
+	t.Run("error - not a tar stream", func(t *testing.T) {
 		// --- Given ---
-		ctx := t.Context()
-		eoutDwl, eoutTar := &bytes.Buffer{}, &bytes.Buffer{}
+		r := strings.NewReader(strings.Repeat("x", 1024))
 
 		// --- When ---
-		err := archiveErr(ctx, nil, eoutDwl, ErrTest, eoutTar)
+		have, err := extractFile(r, "a.txt")
 
 		// --- Then ---
-		assert.ErrorEqual(t, "tar: test error", err)
-	})
-
-	t.Run("error - archive without message", func(t *testing.T) {
-		// --- Given ---
-		ctx := t.Context()
-		eoutDwl, eoutTar := &bytes.Buffer{}, &bytes.Buffer{}
-
-		// --- When ---
-		err := archiveErr(ctx, ErrTest, eoutDwl, nil, eoutTar)
-
-		// --- Then ---
-		assert.ErrorEqual(t, "git archive: test error", err)
+		assert.ErrorContain(t, "read archive: ", err)
+		assert.Nil(t, have)
 	})
 }
 

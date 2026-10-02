@@ -40,7 +40,7 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 ## Prerequisites
 
 - Go 1.26 or newer.
-- The `git` binary on `PATH`. `GetFile` additionally requires `tar`.
+- The `git` binary on `PATH`.
 
 ## Installation
 
