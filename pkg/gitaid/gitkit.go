@@ -407,6 +407,44 @@ func Describe(
 	opts ...DescribeOpt,
 ) (string, error) {
 
+	dsc, err := describe(ctx, repo, opts)
+	if err != nil {
+		return "", err
+	}
+	return dsc.String(), nil
+}
+
+// description is the state of a repository that [Describe] renders and
+// [Derive] builds a [Version] from. Both read the fields, never the rendered
+// string, because a tag may itself end in "-dirty" or look like a
+// "<tag>-<count>-g<hash>" description.
+type description struct {
+	tag   string // The considered tag, or noTagBase when none is usable.
+	count int    // Commits made since tag.
+	hash  string // Short hash HEAD points at.
+	dirty bool   // Whether the working tree has outstanding changes.
+}
+
+// String renders the description in the [Describe] form.
+func (dsc description) String() string {
+	rev := dsc.tag
+	if dsc.count > 0 {
+		rev = fmt.Sprintf("%s-%d-g%s", dsc.tag, dsc.count, dsc.hash)
+	}
+	if dsc.dirty {
+		rev += dirtyMark
+	}
+	return rev
+}
+
+// describe describes HEAD of repo against the closest considered tag; see
+// [Describe] for the rules.
+func describe(
+	ctx context.Context,
+	repo string,
+	opts []DescribeOpt,
+) (description, error) {
+
 	var cfg describeCfg
 	for _, opt := range opts {
 		if opt != nil {
@@ -431,7 +469,7 @@ func Describe(
 	rev, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		if !errors.Is(err, ErrNoTags) {
-			return "", err
+			return description{}, err
 		}
 		return describeNoTag(ctx, repo)
 	}
@@ -440,22 +478,16 @@ func Describe(
 	if !ok || !isSemVer(tag) {
 		return describeNoTag(ctx, repo)
 	}
+	count, err := strconv.Atoi(cnt)
+	if err != nil {
+		return describeNoTag(ctx, repo)
+	}
 
 	clean, err := IsClean(ctx, repo)
 	if err != nil {
-		return "", err
+		return description{}, err
 	}
-	if cnt == "0" {
-		if !clean {
-			return tag + dirtyMark, nil
-		}
-		return tag, nil
-	}
-	rev = tag + "-" + cnt + "-g" + hash
-	if !clean {
-		rev += dirtyMark
-	}
-	return rev, nil
+	return description{tag: tag, count: count, hash: hash, dirty: !clean}, nil
 }
 
 // splitDescribe takes the output of "git describe --long" and splits it into
@@ -481,38 +513,34 @@ func splitDescribe(desc string) (tag, cnt, hash string, ok bool) {
 	return tag, cnt, hash, true
 }
 
-// describeNoTag builds the [Describe] result for a repository where no
-// considered tag is a version, describing HEAD against noTagBase.
-func describeNoTag(ctx context.Context, repo string) (string, error) {
+// describeNoTag describes HEAD of a repository where no considered tag is a
+// version against noTagBase.
+func describeNoTag(ctx context.Context, repo string) (description, error) {
 	// Git answers "No names found, cannot describe anything" both for a
 	// repository without commits and for one without tags, so "--always" is
 	// not passed and the two are told apart here instead.
 	empty, err := IsEmpty(ctx, repo)
 	if err != nil {
-		return "", err
+		return description{}, err
 	}
 	if empty {
-		return "", ErrEmptyRepo
+		return description{}, ErrEmptyRepo
 	}
 
 	cnt, err := CountCommits(ctx, repo, "HEAD")
 	if err != nil {
-		return "", err
+		return description{}, err
 	}
 	hash, err := LatestHash(ctx, repo)
 	if err != nil {
-		return "", err
+		return description{}, err
 	}
-	rev := fmt.Sprintf("%s-%d-g%s", noTagBase, cnt, hash)
-
 	clean, err := IsClean(ctx, repo)
 	if err != nil {
-		return "", err
+		return description{}, err
 	}
-	if !clean {
-		rev += dirtyMark
-	}
-	return rev, nil
+	dsc := description{tag: noTagBase, count: cnt, hash: hash, dirty: !clean}
+	return dsc, nil
 }
 
 // Version is the state of a repository rendered as a SemVer 2.0 version that
@@ -578,19 +606,17 @@ func Derive(
 	opts ...DescribeOpt,
 ) (Version, error) {
 
-	var ver Version
-	var err error
-
-	if ver.Hash, err = LatestHash(ctx, repo); err != nil {
-		return Version{}, err
-	}
-
 	opts = append([]DescribeOpt{WithMatch(MatchSemVer)}, opts...)
-	desc, err := Describe(ctx, repo, opts...)
+	dsc, err := describe(ctx, repo, opts)
 	if err != nil {
 		return Version{}, err
 	}
-	ver.Tag, ver.Count, ver.Dirty = splitVersion(desc)
+	ver := Version{
+		Tag:   dsc.tag,
+		Hash:  dsc.hash,
+		Count: dsc.count,
+		Dirty: dsc.dirty,
+	}
 
 	base, err := semver.NewVersion(ver.Tag)
 	if err != nil {
@@ -617,25 +643,6 @@ func Derive(
 	}
 	ver.Rev = next.Original()
 	return ver, nil
-}
-
-// splitVersion takes what [Describe] returned and splits it into the tag it
-// described against, the commits since that tag, and the dirty flag. It is
-// the parsing recipe from docs/versioning.md: strip the marker, then split
-// from the right, because a tag may itself hold "-" and even "-g".
-func splitVersion(desc string) (tag string, count int, dirty bool) {
-	if rest, found := strings.CutSuffix(desc, dirtyMark); found {
-		desc, dirty = rest, true
-	}
-	tagPart, cnt, _, ok := splitDescribe(desc)
-	if !ok {
-		return desc, 0, dirty
-	}
-	count, err := strconv.Atoi(cnt)
-	if err != nil {
-		return desc, 0, dirty
-	}
-	return tagPart, count, dirty
 }
 
 // bumped returns the release base advances to by one bump level. On a 0.x

@@ -1088,6 +1088,42 @@ func Test_Describe(t *testing.T) {
 	})
 }
 
+func Test_description_String_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		dsc  description
+		want string
+	}{
+		{"on tag", description{"v1.2.0", 0, "9ab3d41", false}, "v1.2.0"},
+		{
+			"on tag dirty",
+			description{"v1.2.0", 0, "9ab3d41", true},
+			"v1.2.0-dirty",
+		},
+		{
+			"past tag",
+			description{"v1.2.0", 3, "9ab3d41", false},
+			"v1.2.0-3-g9ab3d41",
+		},
+		{
+			"past tag dirty",
+			description{"v1.2.0", 3, "9ab3d41", true},
+			"v1.2.0-3-g9ab3d41-dirty",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			have := tc.dsc.String()
+
+			// --- Then ---
+			assert.Equal(t, tc.want, have)
+		})
+	}
+}
+
 func Test_describeNoTag(t *testing.T) {
 	t.Run("counts every commit from the synthetic tag", func(t *testing.T) {
 		// --- Given ---
@@ -1104,7 +1140,8 @@ func Test_describeNoTag(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.0.0-2-g"+cm.Hash, have)
+		want := description{tag: "v0.0.0", count: 2, hash: cm.Hash}
+		assert.Equal(t, want, have)
 	})
 
 	t.Run("dirty work dir", func(t *testing.T) {
@@ -1121,7 +1158,8 @@ func Test_describeNoTag(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v0.0.0-1-g"+cm.Hash+"-dirty", have)
+		want := description{tag: "v0.0.0", count: 1, hash: cm.Hash, dirty: true}
+		assert.Equal(t, want, have)
 	})
 
 	t.Run("error - empty git repo", func(t *testing.T) {
@@ -1363,6 +1401,46 @@ func Test_Derive(t *testing.T) {
 		assert.Equal(t, "v0.4.0", have.Tag)
 	})
 
+	t.Run("tag ending in the dirty marker is a release", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll("v1.0.0-dirty")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.0.0-dirty", have.Rev)
+		assert.Equal(t, "v1.0.0-dirty", have.Tag)
+		assert.Equal(t, cm.Hash, have.Hash)
+		assert.Equal(t, 0, have.Count)
+		assert.False(t, have.Dirty)
+		assert.True(t, have.Release)
+	})
+
+	t.Run("tag shaped like describe output is a release", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v1.2.0-3-gabcdef1")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.2.0-3-gabcdef1", have.Rev)
+		assert.Equal(t, "v1.2.0-3-gabcdef1", have.Tag)
+		assert.Equal(t, 0, have.Count)
+		assert.True(t, have.Release)
+	})
+
 	t.Run("error - unknown bump", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
@@ -1412,54 +1490,6 @@ func Test_Derive(t *testing.T) {
 		assert.ErrorContain(t, "must be run in a work tree", err)
 		assert.Equal(t, Version{}, have)
 	})
-}
-
-func Test_splitVersion_tabular(t *testing.T) {
-	tt := []struct {
-		testN string
-
-		desc   string
-		wTag   string
-		wCount int
-		wDirty bool
-	}{
-		{"past tag", "v1.2.0-3-g9ab3d41", "v1.2.0", 3, false},
-		{
-			"past tag dirty",
-			"v1.2.0-3-g9ab3d41-dirty",
-			"v1.2.0",
-			3,
-			true,
-		},
-		{
-			"tag holding a dash",
-			"v1.0.0-rc.1-2-g9ab3d41",
-			"v1.0.0-rc.1",
-			2,
-			false,
-		},
-		{"on tag", "v1.2.0", "v1.2.0", 0, false},
-		{"on tag dirty", "v1.2.0-dirty", "v1.2.0", 0, true},
-		{
-			"count overflows int",
-			"v1.2.0-99999999999999999999-g9ab3d41",
-			"v1.2.0-99999999999999999999-g9ab3d41",
-			0,
-			false,
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.testN, func(t *testing.T) {
-			// --- When ---
-			hTag, hCount, hDirty := splitVersion(tc.desc)
-
-			// --- Then ---
-			assert.Equal(t, tc.wTag, hTag)
-			assert.Equal(t, tc.wCount, hCount)
-			assert.Equal(t, tc.wDirty, hDirty)
-		})
-	}
 }
 
 func Test_bumped(t *testing.T) {
