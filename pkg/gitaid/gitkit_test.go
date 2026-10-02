@@ -3219,7 +3219,7 @@ func Test_extractFile(t *testing.T) {
 			Typeflag: tar.TypeSymlink,
 			Linkname: "b",
 		}
-		r := tarOf(t, lnk)
+		r := tarOf(t, tarEntry{hdr: lnk})
 
 		// --- When ---
 		have, err := extractFile(r, "a.txt")

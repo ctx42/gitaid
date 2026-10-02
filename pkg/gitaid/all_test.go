@@ -114,18 +114,23 @@ func Bare(t tester.T, elems ...string) string {
 	return dir
 }
 
-// tarOf returns a tar stream holding hdrs in order, each regular file with the
-// content its tarFile header was given.
-func tarOf(t tester.T, hdrs ...*tar.Header) *bytes.Buffer {
+// tarEntry is one entry of a tar stream tarOf builds.
+type tarEntry struct {
+	hdr     *tar.Header // The entry header.
+	content string      // The content of a regular file.
+}
+
+// tarOf returns a tar stream holding ents in order.
+func tarOf(t tester.T, ents ...tarEntry) *bytes.Buffer {
 	t.Helper()
 	buf := &bytes.Buffer{}
 	twr := tar.NewWriter(buf)
-	for _, hdr := range hdrs {
-		if err := twr.WriteHeader(hdr); err != nil {
+	for _, ent := range ents {
+		if err := twr.WriteHeader(ent.hdr); err != nil {
 			t.Error(err)
 			return nil
 		}
-		if _, err := io.WriteString(twr, tarContent[hdr]); err != nil {
+		if _, err := io.WriteString(twr, ent.content); err != nil {
 			t.Error(err)
 			return nil
 		}
@@ -137,24 +142,21 @@ func tarOf(t tester.T, hdrs ...*tar.Header) *bytes.Buffer {
 	return buf
 }
 
-// tarContent holds the content tarFile gives each header it builds.
-var tarContent = map[*tar.Header]string{}
-
-// tarFile returns the header of a regular file with content for tarOf.
-func tarFile(name, content string) *tar.Header {
+// tarFile returns the entry of a regular file with content for tarOf.
+func tarFile(name, content string) tarEntry {
 	hdr := &tar.Header{
 		Name:     name,
 		Typeflag: tar.TypeReg,
 		Mode:     0o644,
 		Size:     int64(len(content)),
 	}
-	tarContent[hdr] = content
-	return hdr
+	return tarEntry{hdr: hdr, content: content}
 }
 
-// tarDir returns the header of a directory for tarOf.
-func tarDir(name string) *tar.Header {
-	return &tar.Header{Name: name, Typeflag: tar.TypeDir, Mode: 0o755}
+// tarDir returns the entry of a directory for tarOf.
+func tarDir(name string) tarEntry {
+	hdr := &tar.Header{Name: name, Typeflag: tar.TypeDir, Mode: 0o755}
+	return tarEntry{hdr: hdr}
 }
 
 // signCommits makes git sign every later commit in the repository of prj with
