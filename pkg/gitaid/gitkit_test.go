@@ -3256,15 +3256,25 @@ func Test_extractFile(t *testing.T) {
 
 func Test_IsHash_tabular(t *testing.T) {
 	tt := []struct {
+		testN string
+
 		in   string
 		want bool
 	}{
-		{"0123456789abcdef", true},
-		{"xx", false},
+		{"abbreviated", "0123456789abcdef", true},
+		{"shortest", "abcdef0", true},
+		{"full sha1", strings.Repeat("a1", 20), true},
+		{"full sha256", strings.Repeat("b2", 32), true},
+		{"one too short", "abcdef", false},
+		{"uppercase", "ABCDEF0", false},
+		{"not hex", "abcdefg", false},
+		{"leading space", " abcdef0", false},
+		{"empty", "", false},
+		{"too short and not hex", "xx", false},
 	}
 
 	for _, tc := range tt {
-		t.Run(tc.in, func(t *testing.T) {
+		t.Run(tc.testN, func(t *testing.T) {
 			// --- When ---
 			have := IsHash(tc.in)
 
