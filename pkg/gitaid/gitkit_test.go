@@ -1062,8 +1062,7 @@ func Test_Describe(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		want := fmt.Sprintf("v1.2.0-1-g%s", prj.GitHash())
-		assert.Equal(t, want, have)
+		assert.Equal(t, fmt.Sprintf("v1.2.0-1-g%s", prj.GitHash()), have)
 	})
 
 	t.Run("closest tag is not a version", func(t *testing.T) {
@@ -1168,9 +1167,10 @@ func Test_Describe(t *testing.T) {
 		prj.CreateFileWith("file0 2", "file0.txt")
 		cm := prj.GitCommit("nightly")
 		prj.Close()
+		opt := WithMatch("v[0-9]*")
 
 		// --- When ---
-		have, err := Describe(ctx, prj.Root(), WithMatch("v[0-9]*"))
+		have, err := Describe(ctx, prj.Root(), opt)
 
 		// --- Then ---
 		assert.NoError(t, err)
@@ -1184,9 +1184,10 @@ func Test_Describe(t *testing.T) {
 		prj.CreateFileWith("file0", "file0.txt")
 		cm := prj.GitInitAddAll("v0.1.0")
 		prj.Close()
+		opt := WithMatch("rel-*")
 
 		// --- When ---
-		have, err := Describe(ctx, prj.Root(), WithMatch("rel-*"))
+		have, err := Describe(ctx, prj.Root(), opt)
 
 		// --- Then ---
 		assert.NoError(t, err)
@@ -1298,11 +1299,19 @@ func Test_splitDescribe_tabular(t *testing.T) {
 		{"past tag", "v1.2.0-3-g9ab3d41", "v1.2.0", "3", "9ab3d41", true},
 		{
 			"tag holding a dash",
-			"rel-1.0-2-g9ab3d41", "rel-1.0", "2", "9ab3d41", true,
+			"rel-1.0-2-g9ab3d41",
+			"rel-1.0",
+			"2",
+			"9ab3d41",
+			true,
 		},
 		{
 			"tag holding -g",
-			"v1.0.0-gamma-2-g9ab3d41", "v1.0.0-gamma", "2", "9ab3d41", true,
+			"v1.0.0-gamma-2-g9ab3d41",
+			"v1.0.0-gamma",
+			"2",
+			"9ab3d41",
+			true,
 		},
 		{"no hash marker", "v1.2.0", "", "", "", false},
 		{"no count field", "v1.2.0-g9ab3d41", "", "", "", false},
@@ -2047,10 +2056,7 @@ func Test_ChangeLog(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		want := []string{
-			"test commit 2",
-		}
-		assert.Equal(t, want, have)
+		assert.Equal(t, []string{"test commit 2"}, have)
 	})
 
 	t.Run("multiple commits ahead of base revision", func(t *testing.T) {
@@ -2241,9 +2247,10 @@ func Test_Init(t *testing.T) {
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.Close()
+		dir := filepath.Join(prj.Root(), "not_existing")
 
 		// --- When ---
-		err := Init(ctx, filepath.Join(prj.Root(), "not_existing"))
+		err := Init(ctx, dir)
 
 		// --- Then ---
 		assert.ErrorContain(t, "no such file or directory", err)
@@ -2369,8 +2376,6 @@ func Test_IsClean(t *testing.T) {
 		prj.Exe("git", "add", "-A")
 		prj.Close()
 
-		assert.NoError(t, Init(ctx, prj.Root()))
-
 		// --- When ---
 		have, err := IsClean(ctx, prj.Root())
 
@@ -2386,8 +2391,6 @@ func Test_IsClean(t *testing.T) {
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
 		prj.Close()
-
-		assert.NoError(t, Init(ctx, prj.Root()))
 
 		// --- When ---
 		have, err := IsClean(ctx, prj.Root())
@@ -2453,8 +2456,6 @@ func Test_WorkTreeStatus(t *testing.T) {
 		prj.Exe("git", "add", "-A")
 		prj.Close()
 
-		assert.NoError(t, Init(ctx, prj.Root()))
-
 		// --- When ---
 		have, err := WorkTreeStatus(ctx, prj.Root())
 
@@ -2470,8 +2471,6 @@ func Test_WorkTreeStatus(t *testing.T) {
 		prj.CreateFileWith("file0 1", "file0.txt")
 		prj.GitInitAddAll()
 		prj.Close()
-
-		assert.NoError(t, Init(ctx, prj.Root()))
 
 		// --- When ---
 		have, err := WorkTreeStatus(ctx, prj.Root())
@@ -3147,7 +3146,11 @@ func Test_IsHash_tabular(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.in, func(t *testing.T) {
-			assert.Equal(t, tc.want, IsHash(tc.in))
+			// --- When ---
+			have := IsHash(tc.in)
+
+			// --- Then ---
+			assert.Equal(t, tc.want, have)
 		})
 	}
 }
