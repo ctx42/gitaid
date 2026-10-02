@@ -60,7 +60,7 @@ string for the directory means the current working directory.
 Check whether a directory is a git repository, matching the sentinel error to
 distinguish "not a repo" from a real failure:
 
-<!-- gmdoceg:pkg/gitaid/ExampleIsRepo -->
+<!-- gmmce:pkg/gitaid/ExampleIsRepo -->
 ```go
 ctx := context.Background()
 
@@ -81,7 +81,7 @@ Produce a version stamp for the current state of the repository — the
 closest tag, how far HEAD has moved past it, and whether the working tree
 is dirty:
 
-<!-- gmdoceg:pkg/gitaid/ExampleDescribe -->
+<!-- gmmce:pkg/gitaid/ExampleDescribe -->
 ```go
 ctx := context.Background()
 
@@ -100,7 +100,7 @@ fmt.Println(name)
 Restrict which tags are considered, so a tag like `nightly` cannot shadow
 the release tag a build should carry:
 
-<!-- gmdoceg:pkg/gitaid/ExampleDescribe_withMatch -->
+<!-- gmmce:pkg/gitaid/ExampleDescribe_withMatch -->
 ```go
 ctx := context.Background()
 
@@ -119,7 +119,7 @@ compare are documented in [docs/versioning.md](docs/versioning.md).
 Build a version that orders correctly against the releases it descends from,
 bumping the closest release tag for a development build:
 
-<!-- gmdoceg:pkg/gitaid/ExampleDerive -->
+<!-- gmmce:pkg/gitaid/ExampleDerive -->
 ```go
 ctx := context.Background()
 
@@ -140,7 +140,7 @@ fmt.Println("development build", ver.Rev)
 Read full commit messages since a revision, for example to pick the bump
 `Derive` should apply from a "BREAKING CHANGE:" footer:
 
-<!-- gmdoceg:pkg/gitaid/ExampleMessages -->
+<!-- gmmce:pkg/gitaid/ExampleMessages -->
 ```go
 ctx := context.Background()
 
@@ -161,7 +161,7 @@ fmt.Println(bump)
 
 Generate a changelog from commit summaries since a given revision:
 
-<!-- gmdoceg:pkg/gitaid/ExampleChangeLog -->
+<!-- gmmce:pkg/gitaid/ExampleChangeLog -->
 ```go
 ctx := context.Background()
 
@@ -178,7 +178,7 @@ for _, line := range entries {
 
 Fetch a single file from a remote branch without cloning the repository:
 
-<!-- gmdoceg:pkg/gitaid/ExampleGetFile -->
+<!-- gmmce:pkg/gitaid/ExampleGetFile -->
 ```go
 ctx := context.Background()
 
