@@ -128,7 +128,7 @@ func Branch(ctx context.Context, repo string) (string, error) {
 //
 // Example:
 //
-//	ssh://git@example.com:vr/skw-proj.git
+//	git@example.com:vr/skw-proj.git
 //
 // In the above example the project name is "skw-proj".
 func ProjectName(ctx context.Context, repo string) (string, error) {
