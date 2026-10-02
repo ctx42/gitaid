@@ -3187,38 +3187,6 @@ func Test_GetFile(t *testing.T) {
 	})
 }
 
-func Test_withTimeout(t *testing.T) {
-	t.Run("deadline already set", func(t *testing.T) {
-		// --- Given ---
-		ctx, cxl := context.WithTimeout(t.Context(), time.Hour)
-		t.Cleanup(cxl)
-		want, _ := ctx.Deadline()
-
-		// --- When ---
-		have, hCxl := withTimeout(ctx, time.Second)
-
-		// --- Then ---
-		t.Cleanup(hCxl)
-		tim, ok := have.Deadline()
-		assert.True(t, ok)
-		assert.Equal(t, want, tim)
-	})
-
-	t.Run("no deadline", func(t *testing.T) {
-		// --- Given ---
-		ctx := t.Context()
-
-		// --- When ---
-		have, hCxl := withTimeout(ctx, time.Minute)
-
-		// --- Then ---
-		t.Cleanup(hCxl)
-		tim, ok := have.Deadline()
-		assert.True(t, ok)
-		assert.Within(t, time.Now().Add(time.Minute), "1s", tim)
-	})
-}
-
 func Test_extractFile(t *testing.T) {
 	t.Run("regular file", func(t *testing.T) {
 		// --- Given ---

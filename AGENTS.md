@@ -34,7 +34,7 @@ The entire library is the single package `pkg/gitaid`:
   slice and call the unexported `runGitCmd`, which runs `git`, trims stdout,
   and on failure passes the `fatal:`/`error:` line of stderr (`gitMessage`) to
   `gitErrorOr`.
-- `helpers.go` — domain-agnostic helpers (`firstLine`).
+- `helpers.go` — domain-agnostic helpers (`firstLine`, `withTimeout`).
 
 ### Conventions that matter
 

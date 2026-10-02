@@ -984,19 +984,6 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 	return nil
 }
 
-// withTimeout returns ctx unchanged when it already has a deadline, which may
-// be longer than dflt, and ctx bounded by dflt otherwise.
-func withTimeout(
-	ctx context.Context,
-	dflt time.Duration,
-) (context.Context, context.CancelFunc) {
-
-	if _, ok := ctx.Deadline(); ok {
-		return ctx, func() {}
-	}
-	return context.WithTimeout(ctx, dflt)
-}
-
 // extractFile reads the tar stream r to its end and returns the content of
 // the regular file called name. It returns [ErrNotFile] when name is not a
 // regular file or other files sit below it, as they do for a directory, and

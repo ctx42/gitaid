@@ -4,8 +4,10 @@
 package gitaid
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ctx42/testing/pkg/assert"
 	"github.com/ctx42/testkit/pkg/iokit"
@@ -54,5 +56,37 @@ func Test_firstLine(t *testing.T) {
 
 		// --- Then ---
 		assert.Equal(t, "", have)
+	})
+}
+
+func Test_withTimeout(t *testing.T) {
+	t.Run("deadline already set", func(t *testing.T) {
+		// --- Given ---
+		ctx, cxl := context.WithTimeout(t.Context(), time.Hour)
+		t.Cleanup(cxl)
+		want, _ := ctx.Deadline()
+
+		// --- When ---
+		have, hCxl := withTimeout(ctx, time.Second)
+
+		// --- Then ---
+		t.Cleanup(hCxl)
+		tim, ok := have.Deadline()
+		assert.True(t, ok)
+		assert.Equal(t, want, tim)
+	})
+
+	t.Run("no deadline", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+
+		// --- When ---
+		have, hCxl := withTimeout(ctx, time.Minute)
+
+		// --- Then ---
+		t.Cleanup(hCxl)
+		tim, ok := have.Deadline()
+		assert.True(t, ok)
+		assert.Within(t, time.Now().Add(time.Minute), "1s", tim)
 	})
 }
