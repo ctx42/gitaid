@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -2737,13 +2738,30 @@ func Test_GetFile(t *testing.T) {
 		assert.Equal(t, branch, oskit.ReadFileStr(t, dst))
 	})
 
-	t.Run("invalid repo error", func(t *testing.T) {
+	t.Run("error - remote never answers", func(t *testing.T) {
 		// --- Given ---
-		ctx := t.Context()
-		badRepo := "git@example.com:project/repo.git"
+		ctx, cxl := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		t.Cleanup(cxl)
+
+		// A local listener that accepts and stays silent stands in for an
+		// unreachable remote without depending on the network.
+		lsn := must.Value(net.Listen("tcp", "127.0.0.1:0"))
+		t.Cleanup(func() { _ = lsn.Close() })
+		go func() {
+			var cons []net.Conn
+			for {
+				con, err := lsn.Accept()
+				if err != nil {
+					for _, con := range cons {
+						_ = con.Close()
+					}
+					return
+				}
+				cons = append(cons, con)
+			}
+		}()
+		badRepo := "git://" + lsn.Addr().String() + "/repo.git"
 		dst := filepath.Join(t.TempDir(), "from-remote.txt")
-		ctx, cxl := context.WithTimeout(ctx, 200*time.Millisecond)
-		t.Cleanup(func() { cxl() })
 
 		// --- When ---
 		err := GetFile(ctx, badRepo, branch, "file0.txt", dst)
