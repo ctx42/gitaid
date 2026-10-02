@@ -58,7 +58,9 @@ The entire library is the single package `pkg/gitaid`:
    `git archive` through `archive/tar` to fetch a single file from a remote
    without a full clone, and manages its own timeout/`WaitDelay`). Prefer
    routing new commands through `runGitCmd`; anything that must exec git
-   builds the command with `gitCommand`.
+   builds the command with `gitCommand`, which also drops the inherited
+   variables `isRepoVar` names (`GIT_DIR`, `GIT_WORK_TREE`, ...) so `repo`,
+   not a calling hook's environment, picks the repository.
 
 4. **`Describe` and `Derive` share `describe`**, which returns the tag, count,
    hash, and dirty flag as fields; never re-parse the rendered `Describe`
