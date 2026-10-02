@@ -768,15 +768,19 @@ func Messages(ctx context.Context, repo, rng string) ([]string, error) {
 	return msgs, nil
 }
 
-// ChangeLog generates changelog between given base revision and the HEAD.
+// ChangeLog generates changelog of the commits HEAD has and the given base
+// revision does not, so a base on a diverged branch adds none of its own
+// commits. The empty base means every commit reachable from HEAD.
 // The changelog messages are constructed from the first line of the commit
-// message. A commit with an empty message contributes no entry.
+// message. A commit with an empty message contributes no entry. It returns
+// [ErrUnkTag] when the base revision does not exist.
 func ChangeLog(ctx context.Context, repo, rev string) ([]string, error) {
 	if err := noOption(rev); err != nil {
 		return nil, err
 	}
-	if rev != "" {
-		rev = fmt.Sprintf("%s...", rev)
+	base := rev
+	if base != "" {
+		rev = base + ".."
 	}
 	rev += "HEAD"
 
@@ -785,6 +789,9 @@ func ChangeLog(ctx context.Context, repo, rev string) ([]string, error) {
 	args := []string{"log", "--reverse", "--pretty=format:%x00%B", rev}
 	sout, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
+		if base != "" && errors.Is(err, ErrUnkRev) {
+			return nil, fmt.Errorf("%w: %s", ErrUnkTag, base)
+		}
 		return nil, err
 	}
 
@@ -1087,10 +1094,6 @@ func gitErrorOr(msg string, err error) error {
 			return errors.New("empty git error message and nil error parameter")
 		}
 		return err
-
-	case strings.Contains(msg, "ambiguous argument ") &&
-		strings.Contains(msg, "...HEAD"):
-		return ErrUnkTag
 
 	case strings.Contains(msg, "ambiguous argument 'HEAD'"):
 		return ErrEmptyRepo

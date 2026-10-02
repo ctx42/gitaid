@@ -2065,6 +2065,28 @@ func Test_ChangeLog(t *testing.T) {
 		assert.Equal(t, exp, cl)
 	})
 
+	t.Run("base revision on a diverged branch", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v1.0.0")
+		prj.Exe("git", "checkout", "-b", "maint")
+		prj.CreateFileWith("hotfix", "file1.txt")
+		prj.GitCommit("v1.0.1", "fix: hotfix")
+		prj.Exe("git", "checkout", "-")
+		prj.CreateFileWith("feature", "file2.txt")
+		prj.GitCommit("", "feat: feature")
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangeLog(ctx, prj.Root(), "v1.0.1")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"feat: feature"}, have)
+	})
+
 	t.Run("body line starting with the entry marker", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
@@ -3224,12 +3246,6 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 		or  error
 		err error
 	}{
-		{
-			"ambiguous rev range unknown tag",
-			"ambiguous argument ...HEAD",
-			ErrTest,
-			ErrUnkTag,
-		},
 		{
 			"invalid object HEAD empty repo",
 			"Not a valid object name HEAD",
