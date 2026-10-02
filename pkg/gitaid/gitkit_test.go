@@ -2519,7 +2519,6 @@ func Test_Push(t *testing.T) {
 		prj0.CreateFileWith(branch, "file0.txt")
 		prj0.GitCommit("", "test commit 1")
 		prj0.Exe("git", "tag", "-a", "-m", "tag-msg-"+tag, tag)
-		prj0.Exe("git", "push", "--tags")
 		prj0.Close()
 
 		// --- When ---
@@ -2537,7 +2536,7 @@ func Test_Push(t *testing.T) {
 		assert.Equal(t, want, prj1.ExeStdout("git", "tag", "-n99"))
 	})
 
-	t.Run("does push unannotated tags", func(t *testing.T) {
+	t.Run("does not push lightweight tags", func(t *testing.T) {
 		// --- Given ---
 		bare := Bare(t)
 		branch := randkit.Str()
@@ -2550,7 +2549,6 @@ func Test_Push(t *testing.T) {
 		prj0.CreateFileWith(branch, "file0.txt")
 		prj0.GitCommit("", "test commit 1")
 		prj0.Exe("git", "tag", tag)
-		prj0.Exe("git", "push", "--tags")
 		prj0.Close()
 
 		// --- When ---
@@ -2564,8 +2562,7 @@ func Test_Push(t *testing.T) {
 		prj1.Close()
 
 		assert.Equal(t, branch, prj1.ReadFileStr("file0.txt"))
-		want := fmt.Sprintf("tag-%s  test commit 1\n", branch)
-		assert.Equal(t, want, prj1.ExeStdout("git", "tag", "-n99"))
+		assert.Empty(t, prj1.ExeStdout("git", "tag", "-n99"))
 	})
 }
 
