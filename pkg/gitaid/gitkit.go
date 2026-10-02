@@ -887,11 +887,16 @@ func Tag(ctx context.Context, repo, tag, msg string) error {
 	return nil
 }
 
-// Push will push the current branch and tags to the origin. The empty string
+// Push will push the current branch and tags to the origin. When deadline on
+// the context is not set it will be set to 15s. It returns [ErrDetached] when
+// HEAD is detached, because then there is no branch to push. The empty string
 // used for repo directory means current working directory.
 func Push(ctx context.Context, repo string) error {
-	ctx, cxl := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cxl := withTimeout(ctx, 15*time.Second)
 	defer cxl()
+	if _, err := Branch(ctx, repo); err != nil {
+		return err
+	}
 	args := []string{"push", "--follow-tags", "origin", "HEAD"}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
@@ -909,16 +914,10 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 	if err := noOption(branch, src); err != nil {
 		return err
 	}
-	// Set deadline if not already set.
-	var waitDelay time.Duration
-	if tim, ok := ctx.Deadline(); ok {
-		waitDelay = time.Until(tim)
-	} else {
-		waitDelay = 10 * time.Second
-		var cxl func()
-		ctx, cxl = context.WithTimeout(ctx, 10*time.Second)
-		defer cxl()
-	}
+	ctx, cxl := withTimeout(ctx, 10*time.Second)
+	defer cxl()
+	tim, _ := ctx.Deadline()
+	waitDelay := time.Until(tim)
 	if repo == "" {
 		repo = "."
 	}
@@ -958,6 +957,19 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 		return fmt.Errorf("destination: %w", err)
 	}
 	return nil
+}
+
+// withTimeout returns ctx unchanged when it already has a deadline, which may
+// be longer than dflt, and ctx bounded by dflt otherwise.
+func withTimeout(
+	ctx context.Context,
+	dflt time.Duration,
+) (context.Context, context.CancelFunc) {
+
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, dflt)
 }
 
 // extractFile reads the tar stream r to its end and returns the content of

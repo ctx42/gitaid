@@ -2638,6 +2638,25 @@ func Test_Push(t *testing.T) {
 		assert.Equal(t, want, prj1.ExeStdout("git", "tag", "-n99"))
 	})
 
+	t.Run("error - detached head", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "checkout", "--detach")
+		prj.Close()
+
+		// --- When ---
+		err := Push(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrDetached, err)
+	})
+
 	t.Run("does not push lightweight tags", func(t *testing.T) {
 		// --- Given ---
 		bare := Bare(t)
@@ -2898,6 +2917,38 @@ func Test_GetFile(t *testing.T) {
 		// --- Then ---
 		assert.ErrorIs(t, ErrBadArg, err)
 		assert.NoFileExist(t, dst)
+	})
+}
+
+func Test_withTimeout(t *testing.T) {
+	t.Run("deadline already set", func(t *testing.T) {
+		// --- Given ---
+		ctx, cxl := context.WithTimeout(t.Context(), time.Hour)
+		t.Cleanup(cxl)
+		want, _ := ctx.Deadline()
+
+		// --- When ---
+		have, hCxl := withTimeout(ctx, time.Second)
+
+		// --- Then ---
+		t.Cleanup(hCxl)
+		tim, ok := have.Deadline()
+		assert.True(t, ok)
+		assert.Equal(t, want, tim)
+	})
+
+	t.Run("no deadline", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+
+		// --- When ---
+		have, hCxl := withTimeout(ctx, time.Minute)
+
+		// --- Then ---
+		t.Cleanup(hCxl)
+		tim, ok := have.Deadline()
+		assert.True(t, ok)
+		assert.Within(t, time.Now().Add(time.Minute), "1s", tim)
 	})
 }
 
