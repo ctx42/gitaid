@@ -1467,7 +1467,7 @@ func Test_Derive(t *testing.T) {
 		assert.Equal(t, "v2.0.0-dev.1+g"+cm.Hash, have.Rev)
 	})
 
-	t.Run("a patch bump of a pre-release tag names its release", func(t *testing.T) {
+	t.Run("a patch bump of a pre-release tag extends it", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -1482,7 +1482,44 @@ func Test_Derive(t *testing.T) {
 
 		// --- Then ---
 		assert.NoError(t, err)
-		assert.Equal(t, "v1.0.0-dev.1+g"+cm.Hash, have.Rev)
+		assert.Equal(t, "v1.0.0-rc.1.dev.1+g"+cm.Hash, have.Rev)
+		rev, tag := semver.MustParse(have.Rev), semver.MustParse(have.Tag)
+		assert.True(t, rev.GreaterThan(tag))
+	})
+
+	t.Run("a dirty pre-release tag extends it", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll("v1.0.0-rc.1")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.0.0-rc.1.dev.0.dirty+g"+cm.Hash, have.Rev)
+	})
+
+	t.Run("a minor bump of a pre-release tag advances it", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v1.0.0-rc.1")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		cm := prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), BumpMinor)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.1.0-dev.1+g"+cm.Hash, have.Rev)
 	})
 
 	t.Run("no version tag builds up from the base", func(t *testing.T) {

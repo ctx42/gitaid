@@ -616,8 +616,9 @@ type Version struct {
 // The bump is one of [BumpPatch], [BumpMinor] or [BumpMajor]; an empty string
 // means [BumpPatch]. Which one a commit range deserves is a policy this
 // package does not decide - read it off the commits with [Messages], or take
-// it from configuration. Advancing a pre-release tag by a patch lands on the
-// release that tag heads towards, so v1.0.0-rc.1 becomes v1.0.0.
+// it from configuration. A patch bump of a pre-release tag extends the tag's
+// own pre-release instead, so a build one commit past v1.0.0-rc.1 is
+// v1.0.0-rc.1.dev.1: above the tag, below v1.0.0-rc.2 and v1.0.0.
 //
 // Tags are restricted to [MatchSemVer] unless [WithMatch] says otherwise. It
 // returns [ErrBadBump] for an unknown bump, and what [Describe] returns for a
@@ -652,13 +653,18 @@ func Derive(
 		return ver, nil
 	}
 
-	next, err := bumped(base, bump)
-	if err != nil {
-		return Version{}, err
-	}
 	pre := fmt.Sprintf("%s.%d", LabelDev, ver.Count)
 	if ver.Dirty {
 		pre += "." + StateDirty
+	}
+	var next semver.Version
+	if base.Prerelease() != "" && (bump == "" || bump == BumpPatch) {
+		// A patch bump would land on the release the tag heads towards,
+		// and "dev" ranks below most pre-release labels, so the build
+		// would sort below the tag it descends from.
+		next, pre = *base, base.Prerelease()+"."+pre
+	} else if next, err = bumped(base, bump); err != nil {
+		return Version{}, err
 	}
 	if next, err = next.SetPrerelease(pre); err != nil {
 		return Version{}, fmt.Errorf("pre-release %s: %w", pre, err)

@@ -173,6 +173,14 @@ descends from - which is what lets a development build outrank its base.
 
 A release - a clean tree exactly on a considered tag - stays the bare tag.
 
+A pre-release tag under a `patch` bump is the one exception to bumping first.
+Bumping `v1.0.0-rc.1` by a patch lands on `v1.0.0`, and `dev` ranks below
+`rc`, so `v1.0.0-dev.1` would sort below the tag it descends from. `Derive`
+extends the tag's own pre-release instead: one commit past `v1.0.0-rc.1` is
+`v1.0.0-rc.1.dev.1+g7f93fb4`, above the tag and below `v1.0.0-rc.2` and
+`v1.0.0`. A `minor` or `major` bump already lands above the tag and is left
+alone.
+
 Which bump the range deserves is the one part that cannot be read off the
 repository: `patch`, `minor` and `major` are a project's own policy. `Derive`
 takes it as an argument and defaults to `patch`, because guessing low leaves
