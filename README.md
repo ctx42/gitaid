@@ -36,7 +36,8 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
 - **Typed sentinel errors** — branch on `errors.Is` instead of parsing stderr.
-- **Context-aware** — every operation takes a `context.Context`.
+- **Context-aware** — every function that runs git takes a
+  `context.Context`.
 
 ## Prerequisites
 
@@ -55,8 +56,9 @@ import "github.com/ctx42/gitaid/pkg/gitaid"
 
 ## Usage
 
-All functions take a `context.Context` and a repository directory. An empty
-string for the directory means the current working directory.
+Every function that runs git takes a `context.Context` and a repository
+directory. An empty string for the directory means the current working
+directory.
 
 Check whether a directory is a git repository, matching the sentinel error to
 distinguish "not a repo" from a real failure:
