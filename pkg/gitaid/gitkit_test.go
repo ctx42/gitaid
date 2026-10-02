@@ -620,7 +620,8 @@ func Test_LatestHash(t *testing.T) {
 		assert.NoError(t, err)
 
 		want := prj.ExeStdout("git", "rev-parse", "--short=7", "HEAD")
-		assert.Equal(t, strings.TrimSpace(want), have)
+		want = strings.TrimSpace(want)
+		assert.Equal(t, want, have)
 	})
 
 	t.Run("signatures shown in log", func(t *testing.T) {
@@ -2733,8 +2734,8 @@ func Test_Commit(t *testing.T) {
 		err := Commit(ctx, prj.Root(), "")
 
 		// --- Then ---
-		wMsg := "Aborting commit due to empty commit message"
-		assert.ErrorContain(t, wMsg, err)
+		want := "Aborting commit due to empty commit message"
+		assert.ErrorContain(t, want, err)
 		assert.ErrorIs(t, ErrGit, err)
 	})
 
@@ -3503,8 +3504,8 @@ func Test_gitErrorOr(t *testing.T) {
 		err := gitErrorOr("", nil)
 
 		// --- Then ---
-		wMsg := "empty git error message and nil error parameter"
-		assert.ErrorContain(t, wMsg, err)
+		want := "empty git error message and nil error parameter"
+		assert.ErrorContain(t, want, err)
 	})
 }
 
@@ -3512,9 +3513,9 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 	tt := []struct {
 		name string
 
-		msg string
-		or  error
-		err error
+		msg  string
+		or   error
+		want error
 	}{
 		{
 			"invalid object HEAD empty repo",
@@ -3620,7 +3621,7 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 			err := gitErrorOr(tc.msg, tc.or)
 
 			// --- Then ---
-			assert.ErrorIs(t, tc.err, err)
+			assert.ErrorIs(t, tc.want, err)
 		})
 	}
 }
