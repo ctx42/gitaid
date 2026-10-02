@@ -185,21 +185,24 @@ func LatestHash(ctx context.Context, repo string) (string, error) {
 	return sout, nil
 }
 
-// RevDate returns date of the given revision. Returns ErrUnkRev when
-// repository is empty or revision doesn't exist. To distinguish between both
-// cases use IsEmpty.
+// RevDate returns the commit date of the given revision. A tag, annotated or
+// not, resolves to the commit it points at. Returns ErrUnkRev when repository
+// is empty or revision doesn't exist. To distinguish between both cases use
+// IsEmpty.
 func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
 	if err := noOption(rev); err != nil {
 		return time.Time{}, err
 	}
-	args := []string{"show", "--pretty=format:%ct", "--no-patch", rev}
+	// Peeling to the commit keeps "git show" from printing an annotated
+	// tag's header in front of the timestamp.
+	args := []string{"show", "--no-patch", "--format=%ct", rev + "^{commit}"}
 	dt, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		return time.Time{}, err
 	}
 	ts, err := strconv.ParseInt(dt, 10, 64)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, fmt.Errorf("commit date of %s: %w", rev, err)
 	}
 	return time.Unix(ts, 0), nil
 }

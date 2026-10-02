@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -496,7 +495,24 @@ func Test_RevDate(t *testing.T) {
 		assert.Zero(t, tim)
 	})
 
-	t.Run("revision output is not a timestamp", func(t *testing.T) {
+	t.Run("annotated tag", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll()
+		prj.Exe("git", "tag", "-a", "-m", "release", "v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := RevDate(ctx, prj.Root(), "v0.1.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, must.Value(RevDate(ctx, prj.Root(), cm.Hash)), have)
+	})
+
+	t.Run("error - revision is not a commit", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
@@ -504,16 +520,12 @@ func Test_RevDate(t *testing.T) {
 		prj.GitInitAddAll()
 		prj.Close()
 
-		// A blob revision makes git print the file content instead of a
-		// commit timestamp, so strconv.ParseInt fails.
-
 		// --- When ---
-		tim, err := RevDate(ctx, prj.Root(), "HEAD:file0.txt")
+		have, err := RevDate(ctx, prj.Root(), "HEAD^{tree}")
 
 		// --- Then ---
-		var e *strconv.NumError
-		assert.ErrorAs(t, &e, err)
-		assert.Zero(t, tim)
+		assert.ErrorContain(t, "expected commit type", err)
+		assert.Zero(t, have)
 	})
 
 	t.Run("error - revision looks like an option", func(t *testing.T) {
