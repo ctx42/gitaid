@@ -984,9 +984,23 @@ func runGitCmd(
 	cmd.Stdout, cmd.Stderr = sout, eout
 	cmd.Dir = repo
 	if err := cmd.Run(); err != nil {
-		return "", gitErrorOr(firstLine(eout), err)
+		return "", gitErrorOr(gitMessage(eout.String()), err)
 	}
 	return strings.TrimSpace(sout.String()), nil
+}
+
+// gitMessage picks the line of git's stderr that explains a failure: the
+// first one starting with "fatal:" or "error:", or the first line when none
+// does. Warnings, hints, and trace output may precede that line.
+func gitMessage(stderr string) string {
+	for line := range strings.Lines(stderr) {
+		line = strings.TrimSpace(line)
+		fatal := strings.HasPrefix(line, "fatal:")
+		if fatal || strings.HasPrefix(line, "error:") {
+			return line
+		}
+	}
+	return firstLine(strings.NewReader(stderr))
 }
 
 // firstLine returns the first trimmed line from a reader.

@@ -2864,6 +2864,50 @@ func Test_runGitCmd(t *testing.T) {
 		assert.ErrorIs(t, ErrNotRepo, err)
 		assert.Empty(t, have)
 	})
+
+	t.Run("error - message after other stderr lines", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+		repo := prj.Root()
+
+		// Trace output lands on stderr in front of the fatal line.
+		t.Setenv("GIT_TRACE", "1")
+
+		// --- When ---
+		have, err := runGitCmd(ctx, repo, "rev-parse", "--git-dir")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
+}
+
+func Test_gitMessage_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		stderr string
+		want   string
+	}{
+		{"empty", "", ""},
+		{"single line", "fatal: not a repo\n", "fatal: not a repo"},
+		{"no prefix", "Aborting commit\nhint: x\n", "Aborting commit"},
+		{"fatal after trace", "trace: git\nfatal: bad\n", "fatal: bad"},
+		{"error before fatal", "error: first\nfatal: second\n", "error: first"},
+		{"indented", "warning: w\n  fatal: bad  \n", "fatal: bad"},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			have := gitMessage(tc.stderr)
+
+			// --- Then ---
+			assert.Equal(t, tc.want, have)
+		})
+	}
 }
 
 func Test_firstLine(t *testing.T) {
