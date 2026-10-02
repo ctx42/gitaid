@@ -110,8 +110,9 @@ func Branch(ctx context.Context, repo string) (string, error) {
 	return name, nil
 }
 
-// ProjectName returns project name based on repository name at origin or
-// name of the directory where ".git" directory is located.
+// ProjectName returns project name based on repository name at origin or,
+// without an origin, the name of the repository's top-level directory, which
+// for a bare repository is its git directory without a ".git" suffix.
 //
 // Example:
 //
@@ -123,13 +124,7 @@ func ProjectName(ctx context.Context, repo string) (string, error) {
 	origin, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		if errors.Is(err, ErrNoRemote) {
-			dir := repo
-			if dir == "" {
-				if dir, err = os.Getwd(); err != nil {
-					return "", err
-				}
-			}
-			return filepath.Base(dir), nil
+			return topLevelName(ctx, repo)
 		}
 		return "", err
 	}
@@ -139,6 +134,25 @@ func ProjectName(ctx context.Context, repo string) (string, error) {
 	name := origin[strings.LastIndexAny(origin, "/:")+1:]
 	name = strings.TrimSuffix(name, ".git")
 	return name, nil
+}
+
+// topLevelName returns the name of the top-level directory of repo, or of the
+// git directory without a ".git" suffix when repo is bare and so has no work
+// tree.
+func topLevelName(ctx context.Context, repo string) (string, error) {
+	bare, err := runGitCmd(ctx, repo, "rev-parse", "--is-bare-repository")
+	if err != nil {
+		return "", err
+	}
+	args := []string{"rev-parse", "--show-toplevel"}
+	if bare == "true" {
+		args = []string{"rev-parse", "--path-format=absolute", "--git-dir"}
+	}
+	dir, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(filepath.Base(dir), ".git"), nil
 }
 
 // ProjectOrigin returns the repository origin URL. If repository has no origin

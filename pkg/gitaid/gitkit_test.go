@@ -281,6 +281,35 @@ func Test_ProjectName(t *testing.T) {
 		assert.Equal(t, "project", name)
 	})
 
+	t.Run("without origin from a subdirectory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, oskit.MkdirAll(t, t.TempDir(), "project"))
+		prj.Exe("git", "init")
+		prj.Close()
+		sub := oskit.MkdirAll(t, prj.Root(), "sub")
+
+		// --- When ---
+		have, err := ProjectName(ctx, sub)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "project", have)
+	})
+
+	t.Run("bare repository without origin", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		repo := Bare(t, oskit.MkdirAll(t, t.TempDir(), "project.git"))
+
+		// --- When ---
+		have, err := ProjectName(ctx, repo)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "project", have)
+	})
+
 	t.Run("empty repo resolves current directory", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
@@ -295,6 +324,66 @@ func Test_ProjectName(t *testing.T) {
 		// --- Then ---
 		assert.NoError(t, err)
 		assert.Equal(t, "project", name)
+	})
+}
+
+func Test_topLevelName(t *testing.T) {
+	t.Run("work tree", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, oskit.MkdirAll(t, t.TempDir(), "project"))
+		prj.Exe("git", "init")
+		prj.Close()
+
+		// --- When ---
+		have, err := topLevelName(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "project", have)
+	})
+
+	t.Run("bare repository", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		repo := Bare(t, oskit.MkdirAll(t, t.TempDir(), "project.git"))
+
+		// --- When ---
+		have, err := topLevelName(ctx, repo)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "project", have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := topLevelName(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - inside the git directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Close()
+		gitDir := filepath.Join(prj.Root(), ".git")
+
+		// --- When ---
+		have, err := topLevelName(ctx, gitDir)
+
+		// --- Then ---
+		assert.ErrorContain(t, "must be run in a work tree", err)
+		assert.Empty(t, have)
 	})
 }
 
