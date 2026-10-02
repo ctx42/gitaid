@@ -2549,6 +2549,31 @@ func Test_GetFile(t *testing.T) {
 		assert.NoFileExist(t, dst)
 	})
 
+	t.Run("error - context canceled", func(t *testing.T) {
+		// --- Given ---
+		ctx, cxl := context.WithCancel(t.Context())
+		t.Cleanup(cxl)
+
+		// A git that never finishes keeps the archive step running until
+		// the context is canceled.
+		binDir := t.TempDir()
+		script := "#!/bin/sh\nexec sleep 30\n"
+		gitBin := oskit.Create(t, script, binDir, "git")
+		must.Nil(os.Chmod(gitBin, 0o755))
+		sep := string(os.PathListSeparator)
+		t.Setenv("PATH", binDir+sep+os.Getenv("PATH"))
+		time.AfterFunc(100*time.Millisecond, cxl)
+
+		dst := filepath.Join(t.TempDir(), "from-remote.txt")
+
+		// --- When ---
+		err := GetFile(ctx, bare, branch, "file0.txt", dst)
+
+		// --- Then ---
+		assert.ErrorIs(t, context.Canceled, err)
+		assert.NoFileExist(t, dst)
+	})
+
 	t.Run("error - tar fails", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()

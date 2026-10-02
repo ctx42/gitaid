@@ -896,8 +896,10 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 		// blocks reading the pipe until the context kills it.
 		_ = w.Close()
 		_ = cmdTar.Wait()
-		if exitStatus(err) == -1 {
-			return context.DeadlineExceeded
+		// A killed archive reports a signal, not why it was killed; the
+		// context knows whether it was canceled or ran out of time.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
 		}
 		return gitErrorOr(eoutDwl.String(), err)
 	}

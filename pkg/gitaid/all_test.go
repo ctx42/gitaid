@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -18,16 +17,7 @@ import (
 	"github.com/ctx42/testkit/pkg/exekit"
 	"github.com/ctx42/testkit/pkg/oskit"
 	"github.com/ctx42/testkit/pkg/pathkit"
-	"github.com/ctx42/testkit/pkg/selfkit"
 )
-
-func TestMain(m *testing.M) {
-	runTests, exitCode := selfkit.New().Run(os.Stdout, os.Stderr)
-	if runTests {
-		os.Exit(m.Run())
-	}
-	os.Exit(exitCode)
-}
 
 func Test_Bare(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
@@ -118,12 +108,3 @@ func Bare(t tester.T, elems ...string) string {
 	}
 	return dir
 }
-
-// TError is a test structure implementing error and exitStatus interfaces.
-type TError struct {
-	Err      string
-	ExStatus int
-}
-
-func (e TError) Error() string   { return e.Err }
-func (e TError) ExitStatus() int { return e.ExStatus }
