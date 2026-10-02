@@ -84,13 +84,17 @@ func IsRepo(ctx context.Context, dir string) error {
 }
 
 // IsEmpty returns true if given repository is empty. The empty repository is
-// defined as one without commits.
+// defined as one whose HEAD points at no commit.
 func IsEmpty(ctx context.Context, repo string) (bool, error) {
-	if _, err := ChangeLog(ctx, repo, ""); err != nil {
-		if errors.Is(err, ErrEmptyRepo) {
-			return true, nil
+	args := []string{"rev-parse", "-q", "--verify", "HEAD^{commit}"}
+	if _, err := runGitCmd(ctx, repo, args...); err != nil {
+		// A quiet "--verify" exits 1 without a message when HEAD resolves
+		// to no commit; anything else is a real failure.
+		ee, ok := errors.AsType[*exec.ExitError](err)
+		if !ok || ee.ExitCode() != 1 {
+			return false, err
 		}
-		return false, err
+		return true, nil
 	}
 	return false, nil
 }
