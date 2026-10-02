@@ -3044,7 +3044,7 @@ func Test_GetFile(t *testing.T) {
 	t.Run("error - destination is a directory", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
-		dst := t.TempDir() // Existing directory makes os.Create fail.
+		dst := t.TempDir() // An existing directory makes os.WriteFile fail.
 
 		// --- When ---
 		err := GetFile(ctx, bare, branch, "file0.txt", dst)
