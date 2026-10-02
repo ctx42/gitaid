@@ -525,6 +525,35 @@ func Test_FirstHash(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, cm.Hash, have)
 	})
+
+	t.Run("oldest of several root commits", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		t.Setenv("GIT_COMMITTER_DATE", "2026-01-01T00:00:00Z")
+		cm := prj.GitInitAddAll()
+		main := prj.ExeStdout("git", "branch", "--show-current")
+		main = strings.TrimSpace(main)
+
+		// An unrelated history merged in brings a second, newer root.
+		prj.Exe("git", "checkout", "--orphan", "other")
+		prj.Exe("git", "rm", "-rf", "--quiet", ".")
+		prj.CreateFileWith("file1 1", "file1.txt")
+		t.Setenv("GIT_COMMITTER_DATE", "2026-02-01T00:00:00Z")
+		prj.GitCommit("", "other root")
+		prj.Exe("git", "checkout", main)
+		args := []string{"merge", "--allow-unrelated-histories", "-m", "merge"}
+		prj.Exe("git", append(args, "other")...)
+		prj.Close()
+
+		// --- When ---
+		have, err := FirstHash(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, cm.Hash, have)
+	})
 }
 
 func Test_LatestHash(t *testing.T) {

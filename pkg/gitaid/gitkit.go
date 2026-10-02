@@ -190,11 +190,13 @@ func ProjectOrigin(ctx context.Context, repo string) (string, error) {
 
 // FirstHash returns the abbreviated hash of the first commit in the repo. Git
 // abbreviates to at least seven characters, extending it only as far as needed
-// to stay unambiguous. If the repository has no commits, it returns
-// [ErrEmptyRepo].
+// to stay unambiguous. When merged unrelated histories give HEAD several root
+// commits, the first is the one with the oldest commit date. If the
+// repository has no commits, it returns [ErrEmptyRepo].
 func FirstHash(ctx context.Context, repo string) (string, error) {
 	args := []string{
-		"rev-list", "--max-parents=0", "--abbrev-commit", "--abbrev=7", "HEAD",
+		"rev-list", "--max-parents=0", "--reverse",
+		"--abbrev-commit", "--abbrev=7", "HEAD",
 	}
 	sout, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
