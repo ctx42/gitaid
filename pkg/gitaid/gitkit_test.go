@@ -3520,7 +3520,7 @@ func Test_gitErrorOr(t *testing.T) {
 
 func Test_gitErrorOr_tabular(t *testing.T) {
 	tt := []struct {
-		name string
+		testN string
 
 		msg  string
 		or   error
@@ -3619,7 +3619,7 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.testN, func(t *testing.T) {
 			// --- When ---
 			err := gitErrorOr(tc.msg, tc.or)
 
