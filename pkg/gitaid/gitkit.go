@@ -711,7 +711,7 @@ func Messages(ctx context.Context, repo, rng string) ([]string, error) {
 
 // ChangeLog generates changelog between given base revision and the HEAD.
 // The changelog messages are constructed from the first line of the commit
-// message.
+// message. A commit with an empty message contributes no entry.
 func ChangeLog(ctx context.Context, repo, rev string) ([]string, error) {
 	if err := noOption(rev); err != nil {
 		return nil, err
@@ -721,26 +721,21 @@ func ChangeLog(ctx context.Context, repo, rev string) ([]string, error) {
 	}
 	rev += "HEAD"
 
-	args := []string{"log", "--reverse", "--pretty=format:>>%B", rev}
+	// A NUL byte, which a commit message cannot hold, separates the
+	// messages, so no body line can pass for the start of the next one.
+	args := []string{"log", "--reverse", "--pretty=format:%x00%B", rev}
 	sout, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		return nil, err
 	}
 
 	var entries []string
-	scn := bufio.NewScanner(strings.NewReader(sout))
-	scn.Split(bufio.ScanLines)
-	for scn.Scan() {
-		entry := scn.Text()
-		entry = strings.TrimSpace(entry)
-		if entry == "" || !strings.HasPrefix(entry, ">>") {
+	for msg := range strings.SplitSeq(sout, "\x00") {
+		if msg = strings.TrimSpace(msg); msg == "" {
 			continue
 		}
-		entry = entry[2:]
-		entries = append(entries, entry)
-	}
-	if err = scn.Err(); err != nil {
-		return nil, err
+		subject, _, _ := strings.Cut(msg, "\n")
+		entries = append(entries, strings.TrimSpace(subject))
 	}
 	return entries, nil
 }

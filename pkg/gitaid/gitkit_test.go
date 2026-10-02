@@ -1773,23 +1773,41 @@ func Test_ChangeLog(t *testing.T) {
 		assert.Equal(t, exp, cl)
 	})
 
-	t.Run("commit message exceeds scanner limit", func(t *testing.T) {
+	t.Run("body line starting with the entry marker", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
 		prj := prjkit.New(t, t.TempDir())
 		prj.CreateFileWith("file0 1", "file0.txt")
-		prj.GitInitAddAll()
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", "fix: subject\n\n>> quoted reply\n  >>indented\n")
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"fix: subject"}, have)
+	})
+
+	t.Run("commit message line longer than scanner limit", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
 		big := strings.Repeat("a", bufio.MaxScanTokenSize+1)
 		prj.CreateFileWith("file0 2", "file0.txt")
 		prj.Exe("git", "commit", "-am", big)
 		prj.Close()
 
 		// --- When ---
-		cl, err := ChangeLog(ctx, prj.Root(), "")
+		have, err := ChangeLog(ctx, prj.Root(), "v0.1.0")
 
 		// --- Then ---
-		assert.ErrorIs(t, bufio.ErrTooLong, err)
-		assert.Empty(t, cl)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{big}, have)
 	})
 
 	t.Run("error - revision looks like an option", func(t *testing.T) {
