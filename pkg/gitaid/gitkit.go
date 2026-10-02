@@ -130,7 +130,7 @@ func Branch(ctx context.Context, repo string) (string, error) {
 //
 //	ssh://git@example.com:vr/skw-proj.git
 //
-// In above example project name will be "skw-proj".
+// In the above example the project name is "skw-proj".
 func ProjectName(ctx context.Context, repo string) (string, error) {
 	args := []string{"remote", "get-url", "origin"}
 	origin, err := runGitCmd(ctx, repo, args...)
@@ -1109,10 +1109,10 @@ func gitMessage(stderr string) string {
 	return firstLine(strings.NewReader(stderr))
 }
 
-// gitErrorOr takes error message printed by the git command and returns a
-// matching sentinel error or, for a message no case matches, [ErrGit] with the
-// message text and err wrapped. If the message text is empty err will be
-// returned.
+// gitErrorOr takes the error message printed by the git command and returns
+// the matching sentinel error or, for a message no case matches, [ErrGit] with
+// the message text and err wrapped. An empty message returns err as it is, or
+// a new error saying both are missing when err is nil too.
 //
 //nolint:cyclop
 func gitErrorOr(msg string, err error) error {
