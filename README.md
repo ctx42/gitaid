@@ -45,7 +45,7 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 ## Installation
 
 ```shell
-go get github.com/ctx42/gitaid
+go get github.com/ctx42/gitaid/pkg/gitaid
 ```
 
 ```go
