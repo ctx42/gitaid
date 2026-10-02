@@ -68,8 +68,10 @@ ctx := context.Background()
 switch err := gitaid.IsRepo(ctx, ""); {
 case err == nil:
 	fmt.Println("current directory is a git repository")
+
 case errors.Is(err, gitaid.ErrNotRepo):
 	fmt.Println("not a git repository")
+
 default:
 	log.Fatal(err)
 }
@@ -113,6 +115,49 @@ fmt.Println(name)
 
 Every string `Describe` can return, what each part means, and how the results
 compare are documented in [docs/versioning.md](docs/versioning.md).
+
+Build a version that orders correctly against the releases it descends from,
+bumping the closest release tag for a development build:
+
+<!-- gmdoceg:pkg/gitaid/ExampleDerive -->
+```go
+ctx := context.Background()
+
+// A clean checkout on tag "v0.4.0" is the release "v0.4.0". Three commits
+// later with a dirty tree, a patch bump gives "v0.4.1-dev.3.dirty+g<hash>",
+// which sorts above v0.4.0 and below v0.4.1.
+ver, err := gitaid.Derive(ctx, "", gitaid.BumpPatch)
+if err != nil {
+	log.Fatal(err)
+}
+if ver.Release {
+	fmt.Println("release", ver.Rev)
+	return
+}
+fmt.Println("development build", ver.Rev)
+```
+
+Read full commit messages since a revision, for example to pick the bump
+`Derive` should apply from a "BREAKING CHANGE:" footer:
+
+<!-- gmdoceg:pkg/gitaid/ExampleMessages -->
+```go
+ctx := context.Background()
+
+// Full messages since the v1.0.0 tag, oldest first, so a footer such as
+// "BREAKING CHANGE:" can pick the bump for Derive.
+msgs, err := gitaid.Messages(ctx, "", "v1.0.0..HEAD")
+if err != nil {
+	log.Fatal(err)
+}
+bump := gitaid.BumpPatch
+for _, msg := range msgs {
+	if strings.Contains(msg, "BREAKING CHANGE:") {
+		bump = gitaid.BumpMajor
+	}
+}
+fmt.Println(bump)
+```
 
 Generate a changelog from commit summaries since a given revision:
 
