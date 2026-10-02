@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -135,6 +136,31 @@ func Test_Branch(t *testing.T) {
 		// --- Then ---
 		assert.NoError(t, err)
 		assert.Equal(t, "feature/x", have)
+	})
+
+	t.Run("repo wins over an inherited GIT_DIR", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "branch", "-M", "mine")
+		prj.Close()
+
+		// A hook runs with GIT_DIR naming the repository it was invoked for.
+		other := prjkit.New(t, t.TempDir())
+		other.CreateFileWith("file0 1", "file0.txt")
+		other.GitInitAddAll()
+		other.Exe("git", "branch", "-M", "other")
+		other.Close()
+		t.Setenv("GIT_DIR", filepath.Join(other.Root(), ".git"))
+
+		// --- When ---
+		have, err := Branch(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "mine", have)
 	})
 
 	t.Run("error - detached head", func(t *testing.T) {
@@ -3283,6 +3309,50 @@ func Test_gitCommand(t *testing.T) {
 		assert.Equal(t, []string{"git", "status", "--porcelain"}, have.Args)
 		assert.Equal(t, "LC_ALL=C", have.Env[len(have.Env)-1])
 	})
+
+	t.Run("drops the repository location", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		t.Setenv("GIT_DIR", t.TempDir())
+
+		// --- When ---
+		have := gitCommand(ctx, "status", "--porcelain")
+
+		// --- Then ---
+		assert.False(t, slices.ContainsFunc(have.Env, isRepoVar))
+	})
+}
+
+func Test_isRepoVar_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		kv   string
+		want bool
+	}{
+		{"git dir", "GIT_DIR=/repo/.git", true},
+		{"work tree", "GIT_WORK_TREE=/repo", true},
+		{"index file", "GIT_INDEX_FILE=/repo/.git/index", true},
+		{"common dir", "GIT_COMMON_DIR=/repo/.git", true},
+		{"object directory", "GIT_OBJECT_DIRECTORY=/objects", true},
+		{"alternates", "GIT_ALTERNATE_OBJECT_DIRECTORIES=/objects", true},
+		{"prefix", "GIT_PREFIX=sub/", true},
+		{"empty value", "GIT_DIR=", true},
+		{"config", "GIT_CONFIG_COUNT=1", false},
+		{"key prefix only", "GIT_DIRS=/repo", false},
+		{"other variable", "HOME=/home/user", false},
+		{"no equals sign", "GIT_DIR", true},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			have := isRepoVar(tc.kv)
+
+			// --- Then ---
+			assert.Equal(t, tc.want, have)
+		})
+	}
 }
 
 func Test_runGitCmd(t *testing.T) {

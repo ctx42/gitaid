@@ -23,6 +23,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1059,11 +1060,30 @@ func noOption(args ...string) error {
 
 // gitCommand returns the command running git with args. It sets LC_ALL=C,
 // which overrides LANG and LANGUAGE, so git's messages stay in the English
-// gitErrorOr matches against whatever the caller's locale is.
+// gitErrorOr matches against whatever the caller's locale is. It drops the
+// variables isRepoVar names, so the repository is the one the command's
+// directory holds even when the caller runs inside a git hook.
 func gitCommand(ctx context.Context, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	cmd.Env = slices.DeleteFunc(os.Environ(), isRepoVar)
+	cmd.Env = append(cmd.Env, "LC_ALL=C")
 	return cmd
+}
+
+// isRepoVar returns true if kv, a "key=value" environment entry, sets one of
+// the variables that point git at a repository other than the one found from
+// its working directory, as git sets them for the hooks it runs.
+func isRepoVar(kv string) bool {
+	key, _, _ := strings.Cut(kv, "=")
+	switch key {
+	case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR",
+		"GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+		"GIT_PREFIX":
+		return true
+
+	default:
+		return false
+	}
 }
 
 // runGitCmd runs git with args in repo and returns its trimmed standard
