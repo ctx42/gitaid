@@ -29,13 +29,15 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   `WorkTreeStatus`, `Branch`, `ProjectName`, `ProjectOrigin`.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `Describe`, `Derive`, `CountCommits`, `Messages`,
-  `ChangeLog`. `Describe` always returns a valid SemVer 2.0 version, and
-  `Derive` builds the one that also *orders* correctly against the releases
-  it descends from — see [docs/versioning.md](docs/versioning.md).
+  `ChangeLog`, and `IsHash` to check a commit hash. `Describe` always
+  returns a valid SemVer 2.0 version, and `Derive` builds the one that also
+  *orders* correctly against the releases it descends from — see
+  [docs/versioning.md](docs/versioning.md).
 - **Mutations** — `Init`, `AddRemote`, `Add`, `AddAll`, `Commit`, `Tag`, `Push`.
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
-- **Typed sentinel errors** — branch on `errors.Is` instead of parsing stderr.
+- **Typed sentinel errors** — branch on `errors.Is` instead of parsing stderr,
+  whatever the caller's locale: git always runs with `LC_ALL=C`.
 - **Context-aware** — every function that runs git takes a
   `context.Context`.
 
