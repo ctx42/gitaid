@@ -232,6 +232,40 @@ func Test_ProjectName(t *testing.T) {
 		assert.Equal(t, "skw-proj", name)
 	})
 
+	t.Run("scp url without path", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Exe("git", "remote", "add", "origin", "git@server:skw-proj.git")
+		prj.Close()
+
+		// --- When ---
+		have, err := ProjectName(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "skw-proj", have)
+	})
+
+	t.Run("url with trailing slash", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		origin := "https://example.com/vr/skw-proj.git/"
+
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Exe("git", "remote", "add", "origin", origin)
+		prj.Close()
+
+		// --- When ---
+		have, err := ProjectName(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "skw-proj", have)
+	})
+
 	t.Run("repository without origin", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()

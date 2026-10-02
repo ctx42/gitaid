@@ -133,7 +133,10 @@ func ProjectName(ctx context.Context, repo string) (string, error) {
 		}
 		return "", err
 	}
-	name := filepath.Base(origin)
+	// The name follows the last "/" of a URL or path, or the ":" of an
+	// scp-like "user@host:name.git" with no directory in front of the name.
+	origin = strings.TrimRight(origin, "/")
+	name := origin[strings.LastIndexAny(origin, "/:")+1:]
 	name = strings.TrimSuffix(name, ".git")
 	return name, nil
 }
