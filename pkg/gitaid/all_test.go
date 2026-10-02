@@ -21,6 +21,7 @@ import (
 	"github.com/ctx42/testkit/pkg/exekit"
 	"github.com/ctx42/testkit/pkg/oskit"
 	"github.com/ctx42/testkit/pkg/pathkit"
+	"github.com/ctx42/testkit/pkg/prjkit"
 )
 
 func Test_Bare(t *testing.T) {
@@ -154,6 +155,31 @@ func tarFile(name, content string) *tar.Header {
 // tarDir returns the header of a directory for tarOf.
 func tarDir(name string) *tar.Header {
 	return &tar.Header{Name: name, Typeflag: tar.TypeDir, Mode: 0o755}
+}
+
+// signCommits makes git sign every later commit in the repository of prj with
+// a new SSH key. It skips the test when ssh-keygen is not installed.
+func signCommits(t tester.T, prj *prjkit.Project) {
+	t.Helper()
+	if _, err := exec.LookPath("ssh-keygen"); err != nil {
+		t.Skip("ssh-keygen not available")
+		return
+	}
+	key := filepath.Join(t.TempDir(), "key")
+	prj.Exe("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", key)
+	prj.Exe("git", "config", "gpg.format", "ssh")
+	prj.Exe("git", "config", "user.signingkey", key)
+	prj.Exe("git", "config", "commit.gpgSign", "true")
+}
+
+// showSignatures turns log.showSignature on for every git run after it, as a
+// user's configuration would, so "git log" and "git show" print a signature
+// check in front of each commit.
+func showSignatures(t *testing.T) {
+	t.Helper()
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "log.showSignature")
+	t.Setenv("GIT_CONFIG_VALUE_0", "true")
 }
 
 // moFile returns a GNU gettext catalog translating each key of msgs to its

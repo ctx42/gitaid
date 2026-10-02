@@ -567,6 +567,25 @@ func Test_LatestHash(t *testing.T) {
 		want := prj.ExeStdout("git", "rev-parse", "--short=7", "HEAD")
 		assert.Equal(t, strings.TrimSpace(want), have)
 	})
+
+	t.Run("signatures shown in log", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		signCommits(t, prj)
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll()
+		prj.Close()
+		showSignatures(t)
+
+		// --- When ---
+		have, err := LatestHash(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, cm.Hash, have)
+	})
 }
 
 func Test_RevDate(t *testing.T) {
@@ -688,6 +707,26 @@ func Test_RevDate(t *testing.T) {
 		assert.Zero(t, have)
 
 		assert.NoFileExist(t, out)
+	})
+
+	t.Run("signatures shown in log", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		signCommits(t, prj)
+		prj.CreateFileWith("file0 1", "file0.txt")
+		cm := prj.GitInitAddAll()
+		prj.Close()
+		want := must.Value(RevDate(ctx, prj.Root(), cm.Hash))
+		showSignatures(t)
+
+		// --- When ---
+		have, err := RevDate(ctx, prj.Root(), cm.Hash)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, want, have)
 	})
 }
 
@@ -1990,6 +2029,27 @@ func Test_Messages(t *testing.T) {
 
 		assert.NoFileExist(t, out)
 	})
+
+	t.Run("signatures shown in log", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		signCommits(t, prj)
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", "fix: second")
+		prj.Close()
+		showSignatures(t)
+
+		// --- When ---
+		have, err := Messages(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"Initial commit.", "fix: second"}, have)
+	})
 }
 
 func Test_ChangeLog(t *testing.T) {
@@ -2222,6 +2282,27 @@ func Test_ChangeLog(t *testing.T) {
 		assert.Nil(t, have)
 
 		assert.NoFileExist(t, out+"...HEAD")
+	})
+
+	t.Run("signatures shown in log", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		signCommits(t, prj)
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", "fix: second")
+		prj.Close()
+		showSignatures(t)
+
+		// --- When ---
+		have, err := ChangeLog(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"Initial commit.", "fix: second"}, have)
 	})
 }
 

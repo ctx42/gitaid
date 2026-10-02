@@ -206,7 +206,9 @@ func FirstHash(ctx context.Context, repo string) (string, error) {
 // characters long whatever core.abbrev says. If the repository has no commits,
 // it returns [ErrEmptyRepo].
 func LatestHash(ctx context.Context, repo string) (string, error) {
-	args := []string{"log", "--abbrev=7", "--pretty=format:%h", "-n", "1"}
+	args := []string{
+		"log", noSignature, "--abbrev=7", "--pretty=format:%h", "-n", "1",
+	}
 	sout, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		return "", err
@@ -224,7 +226,9 @@ func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
 	}
 	// Peeling to the commit keeps "git show" from printing an annotated
 	// tag's header in front of the timestamp.
-	args := []string{"show", "--no-patch", "--format=%ct", rev + "^{commit}"}
+	args := []string{
+		"show", noSignature, "--no-patch", "--format=%ct", rev + "^{commit}",
+	}
 	dt, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		return time.Time{}, err
@@ -753,7 +757,9 @@ func Messages(ctx context.Context, repo, rng string) ([]string, error) {
 	if rng == "" {
 		rng = "HEAD"
 	}
-	args := []string{"log", "--reverse", "--pretty=format:%x00%B", rng}
+	args := []string{
+		"log", noSignature, "--reverse", "--pretty=format:%x00%B", rng,
+	}
 	sout, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		return nil, err
@@ -786,7 +792,9 @@ func ChangeLog(ctx context.Context, repo, rev string) ([]string, error) {
 
 	// A NUL byte, which a commit message cannot hold, separates the
 	// messages, so no body line can pass for the start of the next one.
-	args := []string{"log", "--reverse", "--pretty=format:%x00%B", rev}
+	args := []string{
+		"log", noSignature, "--reverse", "--pretty=format:%x00%B", rev,
+	}
 	sout, err := runGitCmd(ctx, repo, args...)
 	if err != nil {
 		if base != "" && errors.Is(err, ErrUnkRev) {
@@ -1025,6 +1033,10 @@ func extractFile(r io.Reader, name string) ([]byte, error) {
 	}
 	return data, nil
 }
+
+// noSignature keeps a user's log.showSignature setting from printing a
+// signature check into the output of "git log" and "git show".
+const noSignature = "--no-show-signature"
 
 // hashRx matches an abbreviated or full commit hash.
 var hashRx = regexp.MustCompile("^[0-9a-f]{7,}$")
