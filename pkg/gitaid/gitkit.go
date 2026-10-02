@@ -927,37 +927,33 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 	cmdTar.Dir = filepath.Dir(dst)
 	cmdTar.WaitDelay = waitDelay
 
-	r, w := io.Pipe()
-	cmdDwl.Stdout = w
-	cmdTar.Stdin = r
+	// An OS pipe hands each process its own end, so when tar quits early the
+	// archive gets EPIPE and exits instead of blocking on a reader that is
+	// gone; with an io.Pipe a copying goroutine would wait forever.
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("archive pipe: %w", err)
+	}
+	cmdDwl.Stdout = pw
+	cmdTar.Stdin = pr
 
-	if err := cmdDwl.Start(); err != nil {
+	if err = cmdDwl.Start(); err != nil {
+		_, _ = pr.Close(), pw.Close()
 		return fmt.Errorf("git archive: %w", err)
 	}
-	if err := cmdTar.Start(); err != nil {
-		// Unblock and reap the archive process before returning.
-		_ = w.Close()
+	if err = cmdTar.Start(); err != nil {
+		// Closing both ends makes the archive fail on its next write.
+		_, _ = pr.Close(), pw.Close()
 		_ = cmdDwl.Wait()
 		return fmt.Errorf("tar: %w", err)
 	}
-	if err := cmdDwl.Wait(); err != nil {
-		// Unblock the tar reader (no more input) and reap it, otherwise it
-		// blocks reading the pipe until the context kills it.
-		_ = w.Close()
-		_ = cmdTar.Wait()
-		// A killed archive reports a signal, not why it was killed; the
-		// context knows whether it was canceled or ran out of time.
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return ctxErr
-		}
-		return gitErrorOr(eoutDwl.String(), err)
-	}
-	if err := w.Close(); err != nil {
-		_ = cmdTar.Wait()
-		return fmt.Errorf("archive pipe: %w", err)
-	}
-	if err := cmdTar.Wait(); err != nil {
-		return fmt.Errorf("tar: %w", err)
+	// The children hold their own copies; dropping ours lets tar see EOF
+	// once the archive exits and the archive see EPIPE once tar exits.
+	_, _ = pr.Close(), pw.Close()
+
+	errDwl, errTar := cmdDwl.Wait(), cmdTar.Wait()
+	if err = archiveErr(ctx, errDwl, eoutDwl, errTar, eoutTar); err != nil {
+		return err
 	}
 
 	//nolint:gosec // dst is the caller-controlled destination path.
@@ -973,6 +969,38 @@ func GetFile(ctx context.Context, repo, branch, src, dst string) error {
 		return fmt.Errorf("destination: %w", err)
 	}
 	return nil
+}
+
+// archiveErr picks the error that explains a failed [GetFile] pipeline from
+// the results of its "git archive" and "tar" processes and their stderr.
+func archiveErr(
+	ctx context.Context,
+	errDwl error,
+	eoutDwl *bytes.Buffer,
+	errTar error,
+	eoutTar *bytes.Buffer,
+) error {
+
+	if errDwl == nil && errTar == nil {
+		return nil
+	}
+	// A killed process reports a signal, not why it was killed; the
+	// context knows whether it was canceled or ran out of time.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	// An archive that explains itself failed first; one dying silently was
+	// most likely cut off by a tar that quit.
+	if errDwl != nil && eoutDwl.Len() > 0 {
+		return gitErrorOr(eoutDwl.String(), errDwl)
+	}
+	if errTar != nil {
+		if msg := strings.TrimSpace(eoutTar.String()); msg != "" {
+			return fmt.Errorf("tar: %s: %w", msg, errTar)
+		}
+		return fmt.Errorf("tar: %w", errTar)
+	}
+	return fmt.Errorf("git archive: %w", errDwl)
 }
 
 // hashRx represents commit hash.

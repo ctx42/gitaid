@@ -5,6 +5,7 @@ package gitaid
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
@@ -2826,6 +2827,39 @@ func Test_GetFile(t *testing.T) {
 		assert.NoFileExist(t, dst)
 	})
 
+	t.Run("error - tar exits without reading", func(t *testing.T) {
+		// --- Given ---
+		ctx, cxl := context.WithTimeout(t.Context(), 5*time.Second)
+		t.Cleanup(cxl)
+
+		// An archive larger than the pipe buffers cannot be written out
+		// before tar quits.
+		bigBare := Bare(t)
+		big := prjkit.New(t, t.TempDir())
+		big.Exe("git", "clone", bigBare, ".")
+		big.CreateFileWith(strings.Repeat("x", 1<<20), "big.txt")
+		big.GitCommit("", "big file")
+		big.Exe("git", "push", "origin", "HEAD")
+		big.Close()
+
+		// A tar that quits at once leaves the archive with no reader.
+		binDir := t.TempDir()
+		script := "#!/bin/sh\necho 'tar: broken input' >&2\nexit 2\n"
+		tar := oskit.Create(t, script, binDir, "tar")
+		must.Nil(os.Chmod(tar, 0o755))
+		sep := string(os.PathListSeparator)
+		t.Setenv("PATH", binDir+sep+os.Getenv("PATH"))
+
+		dst := filepath.Join(t.TempDir(), "from-remote.txt")
+
+		// --- When ---
+		err := GetFile(ctx, bigBare, "HEAD", "big.txt", dst)
+
+		// --- Then ---
+		assert.ErrorEqual(t, "tar: tar: broken input: exit status 2", err)
+		assert.NoFileExist(t, dst)
+	})
+
 	t.Run("error - tar fails", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
@@ -2895,6 +2929,85 @@ func Test_GetFile(t *testing.T) {
 		// --- Then ---
 		assert.ErrorIs(t, ErrBadArg, err)
 		assert.NoFileExist(t, dst)
+	})
+}
+
+func Test_archiveErr(t *testing.T) {
+	t.Run("both succeeded", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		eoutDwl, eoutTar := &bytes.Buffer{}, &bytes.Buffer{}
+
+		// --- When ---
+		err := archiveErr(ctx, nil, eoutDwl, nil, eoutTar)
+
+		// --- Then ---
+		assert.NoError(t, err)
+	})
+
+	t.Run("error - context done", func(t *testing.T) {
+		// --- Given ---
+		ctx, cxl := context.WithCancel(t.Context())
+		cxl()
+		eoutDwl := bytes.NewBufferString("fatal: no such ref: x")
+		eoutTar := &bytes.Buffer{}
+
+		// --- When ---
+		err := archiveErr(ctx, ErrTest, eoutDwl, nil, eoutTar)
+
+		// --- Then ---
+		assert.ErrorIs(t, context.Canceled, err)
+	})
+
+	t.Run("error - archive explains itself", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		eoutDwl := bytes.NewBufferString("remote: fatal: no such ref: x")
+		eoutTar := bytes.NewBufferString("tar: not a tar archive")
+
+		// --- When ---
+		err := archiveErr(ctx, ErrTest, eoutDwl, ErrTest, eoutTar)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+	})
+
+	t.Run("error - tar with message", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		eoutDwl := &bytes.Buffer{}
+		eoutTar := bytes.NewBufferString("tar: broken input\n")
+
+		// --- When ---
+		err := archiveErr(ctx, ErrTest, eoutDwl, ErrTest, eoutTar)
+
+		// --- Then ---
+		assert.ErrorEqual(t, "tar: tar: broken input: test error", err)
+		assert.ErrorIs(t, ErrTest, err)
+	})
+
+	t.Run("error - tar without message", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		eoutDwl, eoutTar := &bytes.Buffer{}, &bytes.Buffer{}
+
+		// --- When ---
+		err := archiveErr(ctx, nil, eoutDwl, ErrTest, eoutTar)
+
+		// --- Then ---
+		assert.ErrorEqual(t, "tar: test error", err)
+	})
+
+	t.Run("error - archive without message", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		eoutDwl, eoutTar := &bytes.Buffer{}, &bytes.Buffer{}
+
+		// --- When ---
+		err := archiveErr(ctx, ErrTest, eoutDwl, nil, eoutTar)
+
+		// --- Then ---
+		assert.ErrorEqual(t, "git archive: test error", err)
 	})
 }
 
