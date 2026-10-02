@@ -155,16 +155,19 @@ if err != nil {
 Functions return one of these sentinel errors when git reports a recognized
 condition. Match them with `errors.Is`:
 
-| Error          | Meaning                                             |
-|----------------|-----------------------------------------------------|
-| `ErrNotRepo`   | Directory is not a git repository.                  |
-| `ErrEmptyRepo` | Repository is initialized but has no commits.       |
-| `ErrUnkRev`    | Revision is unknown.                                |
-| `ErrNoRemote`  | Repository has no remote configured.                |
-| `ErrUnkTag`    | Searched tag does not exist.                        |
-| `ErrUnkFile`   | File or directory does not exist in the repository. |
-| `ErrDetached`  | Repository HEAD is detached, so it has no branch.   |
-| `ErrGit`       | git exited with an otherwise unrecognized error.    |
+| Error          | Meaning                                                 |
+|----------------|---------------------------------------------------------|
+| `ErrNotRepo`   | Directory is not a git repository.                      |
+| `ErrEmptyRepo` | Repository is initialized but has no commits.           |
+| `ErrUnkRev`    | Revision is unknown.                                    |
+| `ErrNoRemote`  | Repository has no remote configured.                    |
+| `ErrUnkTag`    | Searched tag does not exist.                            |
+| `ErrUnkFile`   | File or directory does not exist in the repository.     |
+| `ErrNotFile`   | Path names a directory or other non-regular file.       |
+| `ErrDetached`  | Repository HEAD is detached, so it has no branch.       |
+| `ErrBadArg`    | Argument starts with `-`, which git reads as an option. |
+| `ErrBadBump`   | Bump level is not `patch`, `minor`, or `major`.         |
+| `ErrGit`       | git exited with an otherwise unrecognized error.        |
 
-Any git error that maps to none of the above is returned verbatim as a plain
-`error` carrying git's message.
+`ErrGit` carries git's message and wraps the underlying exec error, so
+`errors.As` still reaches the `*exec.ExitError`.
