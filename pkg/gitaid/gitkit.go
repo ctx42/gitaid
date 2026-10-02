@@ -628,6 +628,9 @@ func Derive(
 	opts ...DescribeOpt,
 ) (Version, error) {
 
+	if err := checkBump(bump); err != nil {
+		return Version{}, err
+	}
 	opts = append([]DescribeOpt{WithMatch(MatchSemVer)}, opts...)
 	dsc, err := describe(ctx, repo, opts)
 	if err != nil {
@@ -672,6 +675,9 @@ func Derive(
 // explicitly unstable, and a project is not declaring 1.0.0 by writing one
 // breaking change.
 func bumped(base *semver.Version, bump string) (semver.Version, error) {
+	if err := checkBump(bump); err != nil {
+		return semver.Version{}, err
+	}
 	if base.Major() == 0 && bump == BumpMajor {
 		bump = BumpMinor
 	}
@@ -682,11 +688,19 @@ func bumped(base *semver.Version, bump string) (semver.Version, error) {
 	case BumpMinor:
 		return base.IncMinor(), nil
 
-	case BumpPatch, "":
-		return base.IncPatch(), nil
-
 	default:
-		return semver.Version{}, fmt.Errorf("%s: %w", bump, ErrBadBump)
+		return base.IncPatch(), nil
+	}
+}
+
+// checkBump returns [ErrBadBump] unless bump is one of [BumpPatch],
+// [BumpMinor], [BumpMajor], or the empty string.
+func checkBump(bump string) error {
+	switch bump {
+	case "", BumpPatch, BumpMinor, BumpMajor:
+		return nil
+	default:
+		return fmt.Errorf("%s: %w", bump, ErrBadBump)
 	}
 }
 

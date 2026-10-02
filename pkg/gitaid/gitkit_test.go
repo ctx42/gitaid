@@ -1564,6 +1564,36 @@ func Test_Derive(t *testing.T) {
 		assert.True(t, have.Release)
 	})
 
+	t.Run("error - unknown bump on a release", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.4.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "sideways")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadBump, err)
+		assert.Equal(t, Version{}, have)
+	})
+
+	t.Run("error - unknown bump outside a repository", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := Derive(ctx, prj.Root(), "sideways")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadBump, err)
+		assert.Equal(t, Version{}, have)
+	})
+
 	t.Run("error - unknown bump", func(t *testing.T) {
 		// --- Given ---
 		ctx := t.Context()
@@ -1655,6 +1685,40 @@ func Test_bumped_tabular(t *testing.T) {
 			// --- Then ---
 			assert.NoError(t, err)
 			assert.Equal(t, tc.want, have.Original())
+		})
+	}
+}
+
+func Test_checkBump(t *testing.T) {
+	t.Run("error - unknown bump", func(t *testing.T) {
+		// --- When ---
+		err := checkBump("sideways")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadBump, err)
+		assert.ErrorContain(t, "sideways", err)
+	})
+}
+
+func Test_checkBump_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		bump string
+	}{
+		{"empty", ""},
+		{"patch", BumpPatch},
+		{"minor", BumpMinor},
+		{"major", BumpMajor},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			err := checkBump(tc.bump)
+
+			// --- Then ---
+			assert.NoError(t, err)
 		})
 	}
 }
