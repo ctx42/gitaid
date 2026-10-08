@@ -1,3 +1,6 @@
+## v0.8.0 (Thu, 08 Oct 2026 12:10:35 UTC)
+- feat(gitaid): add InitBranch, CommitEmpty and CreateBranch.
+
 ## v0.7.0 (Fri, 02 Oct 2026 17:48:25 UTC)
 - fix(gitaid)!: reject arguments git would parse as options.
 - fix(gitaid): read the commit date of an annotated tag in RevDate.
