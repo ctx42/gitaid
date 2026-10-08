@@ -33,7 +33,8 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   returns a valid SemVer 2.0 version, and `Derive` builds the one that also
   *orders* correctly against the releases it descends from — see
   [docs/versioning.md](docs/versioning.md).
-- **Mutations** — `Init`, `AddRemote`, `Add`, `AddAll`, `Commit`, `Tag`, `Push`.
+- **Mutations** — `Init`, `InitBranch`, `AddRemote`, `Add`, `AddAll`,
+  `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`.
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
 - **Typed sentinel errors** — branch on `errors.Is` instead of parsing stderr,

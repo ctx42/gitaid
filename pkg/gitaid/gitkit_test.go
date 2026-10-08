@@ -2393,6 +2393,52 @@ func Test_Init(t *testing.T) {
 	})
 }
 
+func Test_InitBranch(t *testing.T) {
+	t.Run("init", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		err := InitBranch(ctx, prj.Root(), "trunk")
+
+		// --- Then ---
+		assert.NoError(t, err)
+
+		out := prj.ExeStdout("git", "symbolic-ref", "--short", "HEAD")
+		assert.Equal(t, "trunk\n", out)
+	})
+
+	t.Run("error - not existing directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+		dir := filepath.Join(prj.Root(), "not_existing")
+
+		// --- When ---
+		err := InitBranch(ctx, dir, "trunk")
+
+		// --- Then ---
+		assert.ErrorContain(t, "no such file or directory", err)
+	})
+
+	t.Run("error - branch looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		err := InitBranch(ctx, prj.Root(), "--bare")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.NoDirExist(t, filepath.Join(prj.Root(), ".git"))
+	})
+}
+
 func Test_AddRemote(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
@@ -2763,6 +2809,64 @@ func Test_Commit(t *testing.T) {
 	})
 }
 
+func Test_CommitEmpty(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		err := CommitEmpty(ctx, prj.Root(), "message")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+	})
+
+	t.Run("root commit in empty repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Exe("git", "config", "user.email", "test@example.com")
+		prj.Exe("git", "config", "user.name", "Test User")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.Close()
+
+		// --- When ---
+		err := CommitEmpty(ctx, prj.Root(), "message")
+
+		// --- Then ---
+		assert.NoError(t, err)
+
+		out := prj.ExeStdout("git", "log", "--format=%s", "--name-only")
+		assert.Equal(t, "message\n", out)
+		out = prj.ExeStdout("git", "status", "--porcelain")
+		assert.Equal(t, "?? file0.txt\n", out)
+	})
+
+	t.Run("commits staged files", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Exe("git", "config", "user.email", "test@example.com")
+		prj.Exe("git", "config", "user.name", "Test User")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.Exe("git", "add", "file0.txt")
+		prj.Close()
+
+		// --- When ---
+		err := CommitEmpty(ctx, prj.Root(), "message")
+
+		// --- Then ---
+		assert.NoError(t, err)
+
+		out := prj.ExeStdout("git", "log", "--format=%s", "--name-only")
+		assert.Equal(t, "message\n\nfile0.txt\n", out)
+	})
+}
+
 func Test_Tag(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
@@ -2823,6 +2927,73 @@ func Test_Tag(t *testing.T) {
 
 		// --- When ---
 		err := Tag(ctx, prj.Root(), "--force", "message")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+	})
+}
+
+func Test_CreateBranch(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		err := CreateBranch(ctx, prj.Root(), "develop")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+	})
+
+	t.Run("create and switch", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+		base := prj.ExeStdout("git", "rev-parse", "HEAD")
+
+		// --- When ---
+		err := CreateBranch(ctx, prj.Root(), "develop")
+
+		// --- Then ---
+		assert.NoError(t, err)
+
+		out := prj.ExeStdout("git", "symbolic-ref", "--short", "HEAD")
+		assert.Equal(t, "develop\n", out)
+		assert.Equal(t, base, prj.ExeStdout("git", "rev-parse", "HEAD"))
+	})
+
+	t.Run("error - branch exists", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "branch", "develop")
+		prj.Close()
+
+		// --- When ---
+		err := CreateBranch(ctx, prj.Root(), "develop")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrGit, err)
+		assert.ErrorContain(t, "a branch named 'develop' already exists", err)
+	})
+
+	t.Run("error - branch looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		err := CreateBranch(ctx, prj.Root(), "--orphan")
 
 		// --- Then ---
 		assert.ErrorIs(t, ErrBadArg, err)

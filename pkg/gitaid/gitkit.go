@@ -825,6 +825,20 @@ func Init(ctx context.Context, dir string) error {
 	return nil
 }
 
+// InitBranch initializes a git repository in dir with branch as its initial
+// branch, whatever the init.defaultBranch configuration says. The empty
+// string used for dir means the current working directory.
+func InitBranch(ctx context.Context, dir, branch string) error {
+	if err := noOption(branch); err != nil {
+		return err
+	}
+	args := []string{"init", "--initial-branch", branch}
+	if _, err := runGitCmd(ctx, dir, args...); err != nil {
+		return err
+	}
+	return nil
+}
+
 // AddRemote adds a remote named origin to the git repository in dir.
 func AddRemote(ctx context.Context, dir, remote string) error {
 	if err := noOption(remote); err != nil {
@@ -890,6 +904,18 @@ func Commit(ctx context.Context, repo, msg string) error {
 	return nil
 }
 
+// CommitEmpty commits with a message even when nothing is staged, which is
+// how a repository gets a root commit that holds no files. Anything staged is
+// committed too. The empty string used for repo means the current working
+// directory.
+func CommitEmpty(ctx context.Context, repo, msg string) error {
+	args := []string{"commit", "--allow-empty", "-m", msg}
+	if _, err := runGitCmd(ctx, repo, args...); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Tag tags the current revision with tag and message. The empty string used
 // for repo means the current working directory.
 func Tag(ctx context.Context, repo, tag, msg string) error {
@@ -897,6 +923,19 @@ func Tag(ctx context.Context, repo, tag, msg string) error {
 		return err
 	}
 	args := []string{"tag", "-a", "-m", msg, tag}
+	if _, err := runGitCmd(ctx, repo, args...); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CreateBranch creates branch at HEAD and switches to it. The empty string
+// used for repo means the current working directory.
+func CreateBranch(ctx context.Context, repo, branch string) error {
+	if err := noOption(branch); err != nil {
+		return err
+	}
+	args := []string{"switch", "--create", branch}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
 	}
