@@ -69,6 +69,10 @@ var (
 	// starts with "-", so git would read it as an option.
 	ErrBadArg = errors.New("argument looks like an option")
 
+	// ErrNotEmpty is returned when a clone destination exists and is not an
+	// empty directory.
+	ErrNotEmpty = errors.New("destination not empty")
+
 	// ErrGit is returned when the git binary fails in a way no other error
 	// covers. It carries git's message and wraps the underlying exec error.
 	ErrGit = errors.New("git error")
@@ -974,6 +978,54 @@ func Push(ctx context.Context, repo string) error {
 	return nil
 }
 
+// Clone clones the repository at url into the directory dst and checks out
+// its default branch. The dst directory must not exist or must be empty, else
+// [ErrNotEmpty] is returned. Git's messages are written to out as they come;
+// nil discards them. Git never prompts: a missing credential, an unknown SSH
+// host key, or a passphrase the SSH agent cannot supply fails the clone
+// instead of waiting for input. The clone has no default timeout; ctx bounds
+// it. On failure git removes the dst directory it created.
+func Clone(ctx context.Context, url, dst string, out io.Writer) error {
+	if err := noOption(url); err != nil {
+		return err
+	}
+	if out == nil {
+		out = io.Discard
+	}
+	eout := &bytes.Buffer{}
+	cmd := gitCommand(ctx, "clone", "--", url, dst)
+	cmd.Env = noPrompt(cmd.Env)
+	// One writer for both streams, so exec copies them in one goroutine and
+	// out is never written concurrently.
+	wrt := io.MultiWriter(out, eout)
+	cmd.Stdout, cmd.Stderr = wrt, wrt
+	if err := cmd.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		return gitErrorOr(gitMessage(eout.String()), err)
+	}
+	return nil
+}
+
+// noPrompt returns env, a list of "key=value" entries, set up so git and SSH
+// fail instead of prompting: GIT_TERMINAL_PROMPT=0 stops git asking for
+// credentials, and "-o BatchMode=yes" added to GIT_SSH_COMMAND, or set as
+// "ssh -o BatchMode=yes" when it is absent, stops SSH asking about host keys
+// and passphrases.
+func noPrompt(env []string) []string {
+	const batch = "-o BatchMode=yes"
+	ssh := "ssh " + batch
+	env = slices.DeleteFunc(env, func(kv string) bool {
+		key, val, _ := strings.Cut(kv, "=")
+		if key == "GIT_SSH_COMMAND" && val != "" {
+			ssh = val + " " + batch
+		}
+		return key == "GIT_SSH_COMMAND" || key == "GIT_TERMINAL_PROMPT"
+	})
+	return append(env, "GIT_TERMINAL_PROMPT=0", "GIT_SSH_COMMAND="+ssh)
+}
+
 // GetFile gets the file at path src on a branch or tag of the repository and
 // stores it in dst. A context without a deadline is given one of 10s. The
 // empty string used for repo means the current working directory, and a
@@ -1212,6 +1264,9 @@ func gitErrorOr(msg string, err error) error {
 
 	case strings.Contains(msg, "can only be used inside a git repository"):
 		return ErrNotRepo
+
+	case strings.Contains(msg, "already exists and is not an empty directory"):
+		return ErrNotEmpty
 
 	default:
 		if err == nil {

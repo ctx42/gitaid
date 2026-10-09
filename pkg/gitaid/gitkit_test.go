@@ -6,6 +6,7 @@ package gitaid
 import (
 	"archive/tar"
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
@@ -3156,6 +3157,179 @@ func Test_Push(t *testing.T) {
 	})
 }
 
+func Test_Clone(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		src := prjkit.New(t, t.TempDir())
+		src.Exe("git", "clone", bare, ".")
+		src.CreateFileWith("content", "file0.txt")
+		src.GitCommit("", "test commit 1")
+		src.Exe("git", "push", "origin", "HEAD")
+		src.Close()
+
+		dst := filepath.Join(t.TempDir(), "clone")
+		out := &bytes.Buffer{}
+
+		// --- When ---
+		err := Clone(ctx, bare, dst, out)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Contain(t, "Cloning into '"+dst+"'", out.String())
+
+		have := oskit.ReadFileStr(t, dst, "file0.txt")
+		assert.Equal(t, "content", have)
+		assert.Equal(t, bare, must.Value(ProjectOrigin(ctx, dst)))
+	})
+
+	t.Run("nil writer", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+		dst := filepath.Join(t.TempDir(), "clone")
+
+		// --- When ---
+		err := Clone(t.Context(), bare, dst, nil)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.DirExist(t, filepath.Join(dst, ".git"))
+	})
+
+	t.Run("empty destination directory", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+		dst := t.TempDir()
+
+		// --- When ---
+		err := Clone(t.Context(), bare, dst, nil)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.DirExist(t, filepath.Join(dst, ".git"))
+	})
+
+	t.Run("error - destination not empty", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+		dst := t.TempDir()
+		oskit.Create(t, "content", dst, "file0.txt")
+
+		// --- When ---
+		err := Clone(t.Context(), bare, dst, nil)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotEmpty, err)
+		assert.NoDirExist(t, filepath.Join(dst, ".git"))
+	})
+
+	t.Run("error - unknown repository", func(t *testing.T) {
+		// --- Given ---
+		url := filepath.Join(t.TempDir(), "missing.git")
+		dst := filepath.Join(t.TempDir(), "clone")
+
+		// --- When ---
+		err := Clone(t.Context(), url, dst, nil)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrGit, err)
+		assert.ErrorContain(t, "does not exist", err)
+		assert.NoDirExist(t, dst)
+	})
+
+	t.Run("error - url looks like option", func(t *testing.T) {
+		// --- Given ---
+		dst := filepath.Join(t.TempDir(), "clone")
+
+		// --- When ---
+		err := Clone(t.Context(), "--upload-pack=touch", dst, nil)
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.NoDirExist(t, dst)
+	})
+
+	t.Run("error - canceled context", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+		dst := filepath.Join(t.TempDir(), "clone")
+
+		ctx, cxl := context.WithCancel(t.Context())
+		cxl()
+
+		// --- When ---
+		err := Clone(ctx, bare, dst, nil)
+
+		// --- Then ---
+		assert.ErrorIs(t, context.Canceled, err)
+		assert.NoDirExist(t, dst)
+	})
+}
+
+func Test_noPrompt_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		env  []string
+		want []string
+	}{
+		{
+			"empty",
+			nil,
+			[]string{
+				"GIT_TERMINAL_PROMPT=0",
+				"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
+			},
+		},
+		{
+			"keeps other variables",
+			[]string{"A=1", "B=2"},
+			[]string{
+				"A=1",
+				"B=2",
+				"GIT_TERMINAL_PROMPT=0",
+				"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
+			},
+		},
+		{
+			"replaces terminal prompt",
+			[]string{"GIT_TERMINAL_PROMPT=1"},
+			[]string{
+				"GIT_TERMINAL_PROMPT=0",
+				"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
+			},
+		},
+		{
+			"extends ssh command",
+			[]string{"GIT_SSH_COMMAND=ssh -i key"},
+			[]string{
+				"GIT_TERMINAL_PROMPT=0",
+				"GIT_SSH_COMMAND=ssh -i key -o BatchMode=yes",
+			},
+		},
+		{
+			"empty ssh command",
+			[]string{"GIT_SSH_COMMAND="},
+			[]string{
+				"GIT_TERMINAL_PROMPT=0",
+				"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			have := noPrompt(tc.env)
+
+			// --- Then ---
+			assert.Equal(t, tc.want, have)
+		})
+	}
+}
+
 func Test_GetFile(t *testing.T) {
 	bare := Bare(t)
 	// Generate random branch name check it out, add file, commit and push.
@@ -3834,6 +4008,13 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 			"can only be used inside a git repository",
 			ErrTest,
 			ErrNotRepo,
+		},
+		{
+			"destination not empty",
+			"fatal: destination path 'x' already exists and is not an " +
+				"empty directory.",
+			ErrTest,
+			ErrNotEmpty,
 		},
 	}
 

@@ -34,7 +34,8 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   *orders* correctly against the releases it descends from — see
   [docs/versioning.md](docs/versioning.md).
 - **Mutations** — `Init`, `InitBranch`, `AddRemote`, `Add`, `AddAll`,
-  `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`.
+  `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`, and `Clone`, which
+  never prompts for credentials, host keys, or passphrases.
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
 - **Typed sentinel errors** — branch on `errors.Is` instead of parsing stderr,
@@ -217,6 +218,7 @@ condition. Match them with `errors.Is`:
 | `ErrNotFile`   | Path names a directory or other non-regular file.       |
 | `ErrDetached`  | Repository HEAD is detached, so it has no branch.       |
 | `ErrBadArg`    | Argument starts with `-`, which git reads as an option. |
+| `ErrNotEmpty`  | Clone destination exists and is not an empty directory. |
 | `ErrBadBump`   | Bump level is not `patch`, `minor`, or `major`.         |
 | `ErrGit`       | git exited with an otherwise unrecognized error.        |
 
