@@ -65,6 +65,14 @@ var (
 	// because its HEAD is detached.
 	ErrDetached = errors.New("detached HEAD")
 
+	// ErrNoUpstream is returned when the checked-out branch has no upstream
+	// configured.
+	ErrNoUpstream = errors.New("no upstream")
+
+	// ErrUpstreamGone is returned when the checked-out branch has an upstream
+	// configured, but its remote-tracking branch no longer exists.
+	ErrUpstreamGone = errors.New("upstream gone")
+
 	// ErrBadArg is returned when a revision, tag, remote, or path argument
 	// starts with "-", so git would read it as an option.
 	ErrBadArg = errors.New("argument looks like an option")
@@ -119,6 +127,77 @@ func Branch(ctx context.Context, repo string) (string, error) {
 		return "", ErrDetached
 	}
 	return name, nil
+}
+
+// Upstream returns the short name of the upstream of the branch checked out in
+// the repository, such as "origin/main". It returns [ErrDetached] when HEAD is
+// detached, [ErrEmptyRepo] when the branch has no commits yet, [ErrNoUpstream]
+// when the branch has no upstream configured, and [ErrUpstreamGone] when the
+// upstream's remote-tracking branch no longer exists, as after a [Fetch] that
+// pruned it. The empty string used for repo means the current working
+// directory.
+func Upstream(ctx context.Context, repo string) (string, error) {
+	branch, err := Branch(ctx, repo)
+	if err != nil {
+		return "", err
+	}
+	// Git reports a missing upstream and an unborn branch with the same
+	// message, so the ref's upstream fields are read instead of resolving
+	// "@{upstream}".
+	args := []string{
+		"for-each-ref",
+		"--format=%(upstream:short)%00%(upstream:track)",
+		"refs/heads/" + branch,
+	}
+	sout, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return "", err
+	}
+	if sout == "" {
+		return "", ErrEmptyRepo
+	}
+	name, track, _ := strings.Cut(sout, "\x00")
+	if name == "" {
+		return "", ErrNoUpstream
+	}
+	if track == "[gone]" {
+		return "", ErrUpstreamGone
+	}
+	return name, nil
+}
+
+// AheadBehind returns the number of commits the branch checked out in the
+// repository has that its upstream lacks (ahead) and the number the upstream
+// has that the branch lacks (behind). The upstream is compared as last
+// fetched; see [Fetch]. When there is no upstream to compare against, it
+// returns the error [Upstream] returns. The empty string used for repo means
+// the current working directory.
+func AheadBehind(
+	ctx context.Context,
+	repo string,
+) (ahead, behind int, err error) {
+
+	if _, err = Upstream(ctx, repo); err != nil {
+		return 0, 0, err
+	}
+	args := []string{
+		"rev-list", "--left-right", "--count", "HEAD...@{upstream}",
+	}
+	sout, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return 0, 0, err
+	}
+	counts := strings.Fields(sout)
+	if len(counts) != 2 {
+		return 0, 0, fmt.Errorf("%w: unexpected counts: %q", ErrGit, sout)
+	}
+	if ahead, err = strconv.Atoi(counts[0]); err != nil {
+		return 0, 0, fmt.Errorf("%w: ahead count: %w", ErrGit, err)
+	}
+	if behind, err = strconv.Atoi(counts[1]); err != nil {
+		return 0, 0, fmt.Errorf("%w: behind count: %w", ErrGit, err)
+	}
+	return ahead, behind, nil
 }
 
 // ProjectName returns the project name based on the repository name at
@@ -974,6 +1053,34 @@ func Push(ctx context.Context, repo string) error {
 	args = []string{"push", "--follow-tags", "origin", "HEAD"}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
+	}
+	return nil
+}
+
+// Fetch fetches from the origin and prunes the remote-tracking branches whose
+// branch the origin no longer has; local branches and the working tree are
+// left alone. Git never prompts: a missing credential, an unknown SSH host
+// key, or a passphrase the SSH agent cannot supply fails the fetch instead of
+// waiting for input. The fetch has no default timeout; ctx bounds it. It
+// returns [ErrNoRemote] when the repository has no origin. The empty string
+// used for repo means the current working directory.
+func Fetch(ctx context.Context, repo string) error {
+	// Fetching from a missing origin fails with a message that names a
+	// repository, not a remote, so the origin is resolved up front.
+	args := []string{"remote", "get-url", "origin"}
+	if _, err := runGitCmd(ctx, repo, args...); err != nil {
+		return err
+	}
+	eout := &bytes.Buffer{}
+	cmd := gitCommand(ctx, "fetch", "--prune", "origin")
+	cmd.Env = noPrompt(cmd.Env)
+	cmd.Dir = repo
+	cmd.Stderr = eout
+	if err := cmd.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		return gitErrorOr(gitMessage(eout.String()), err)
 	}
 	return nil
 }

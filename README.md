@@ -26,7 +26,8 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 ## Features
 
 - **Repository inspection** — `IsRepo`, `IsEmpty`, `IsClean`,
-  `WorkTreeStatus`, `Branch`, `ProjectName`, `ProjectOrigin`, `TopLevel`.
+  `WorkTreeStatus`, `Branch`, `Upstream`, `AheadBehind`, `ProjectName`,
+  `ProjectOrigin`, `TopLevel`.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `Describe`, `Derive`, `CountCommits`, `Messages`,
   `ChangeLog`, and `IsHash` to check a commit hash. `Describe` always
@@ -34,8 +35,9 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   *orders* correctly against the releases it descends from — see
   [docs/versioning.md](docs/versioning.md).
 - **Mutations** — `Init`, `InitBranch`, `AddRemote`, `Add`, `AddAll`,
-  `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`, and `Clone`, which
-  never prompts for credentials, host keys, or passphrases.
+  `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`, `Clone`, and
+  `Fetch`; `Clone` and `Fetch` never prompt for credentials, host keys, or
+  passphrases.
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
 - **Typed sentinel errors** — branch on `errors.Is` instead of parsing stderr,
@@ -207,20 +209,22 @@ if err != nil {
 Functions return one of these sentinel errors when git reports a recognized
 condition. Match them with `errors.Is`:
 
-| Error          | Meaning                                                 |
-|----------------|---------------------------------------------------------|
-| `ErrNotRepo`   | Directory is not a git repository.                      |
-| `ErrEmptyRepo` | Repository is initialized but has no commits.           |
-| `ErrUnkRev`    | Revision is unknown.                                    |
-| `ErrNoRemote`  | Repository has no remote configured.                    |
-| `ErrUnkTag`    | Searched tag does not exist.                            |
-| `ErrUnkFile`   | File or directory does not exist in the repository.     |
-| `ErrNotFile`   | Path names a directory or other non-regular file.       |
-| `ErrDetached`  | Repository HEAD is detached, so it has no branch.       |
-| `ErrBadArg`    | Argument starts with `-`, which git reads as an option. |
-| `ErrNotEmpty`  | Clone destination exists and is not an empty directory. |
-| `ErrBadBump`   | Bump level is not `patch`, `minor`, or `major`.         |
-| `ErrGit`       | git exited with an otherwise unrecognized error.        |
+| Error             | Meaning                                                 |
+|-------------------|---------------------------------------------------------|
+| `ErrNotRepo`      | Directory is not a git repository.                      |
+| `ErrEmptyRepo`    | Repository is initialized but has no commits.           |
+| `ErrUnkRev`       | Revision is unknown.                                    |
+| `ErrNoRemote`     | Repository has no remote configured.                    |
+| `ErrUnkTag`       | Searched tag does not exist.                            |
+| `ErrUnkFile`      | File or directory does not exist in the repository.     |
+| `ErrNotFile`      | Path names a directory or other non-regular file.       |
+| `ErrDetached`     | Repository HEAD is detached, so it has no branch.       |
+| `ErrNoUpstream`   | Checked-out branch has no upstream configured.          |
+| `ErrUpstreamGone` | Upstream's remote-tracking branch no longer exists.     |
+| `ErrBadArg`       | Argument starts with `-`, which git reads as an option. |
+| `ErrNotEmpty`     | Clone destination exists and is not an empty directory. |
+| `ErrBadBump`      | Bump level is not `patch`, `minor`, or `major`.         |
+| `ErrGit`          | git exited with an otherwise unrecognized error.        |
 
 `ErrGit` carries git's message and wraps the underlying exec error, so
 `errors.As` still reaches the `*exec.ExitError`.

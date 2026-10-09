@@ -41,10 +41,10 @@ The entire library is the single package `pkg/gitaid`:
 1. **Sentinel errors + `gitErrorOr`.** Error states are the package-level
    `Err*` sentinels at the top of `gitkit.go` (`ErrNotRepo`, `ErrEmptyRepo`,
    `ErrUnkRev`, `ErrNoTags`, `ErrNoRemote`, `ErrUnkTag`, `ErrUnkFile`,
-   `ErrNotFile`, `ErrDetached`, `ErrBadArg`, `ErrNotEmpty`, `ErrGit`, plus
-   `ErrBadBump`). `gitErrorOr` maps git's English stderr text to these via
-   substring matching; an unmapped message becomes `ErrGit` wrapping the exec
-   error. When handling a new git failure, add a `case` there rather than
+   `ErrNotFile`, `ErrDetached`, `ErrNoUpstream`, `ErrUpstreamGone`,
+   `ErrBadArg`, `ErrNotEmpty`, `ErrGit`, plus `ErrBadBump`). `gitErrorOr`
+   maps git's English stderr text to these via substring matching; an
+   unmapped message becomes `ErrGit` wrapping the exec error. When handling a new git failure, add a `case` there rather than
    returning ad-hoc errors — callers rely on `errors.Is`. Because the mapping
    keys on git's human-readable messages, it is inherently
    git-version-sensitive; `gitCommand` pins `LC_ALL=C` so those messages are
@@ -58,7 +58,8 @@ The entire library is the single package `pkg/gitaid`:
    `git archive` through `archive/tar` to fetch a single file from a remote
    without a full clone, and manages its own timeout/`WaitDelay`, and
    `Clone`, which streams git's output to the caller's writer and runs with
-   the `noPrompt` environment). Prefer
+   the `noPrompt` environment, and `Fetch`, which runs with the `noPrompt`
+   environment too). Prefer
    routing new commands through `runGitCmd`; anything that must exec git
    builds the command with `gitCommand`, which also drops the inherited
    variables `isRepoVar` names (`GIT_DIR`, `GIT_WORK_TREE`, ...) so `repo`,
