@@ -1,3 +1,6 @@
+## v0.10.0 (Fri, 09 Oct 2026 18:13:44 UTC)
+- feat(gitaid): add Upstream, AheadBehind and Fetch.
+
 ## v0.9.0 (Fri, 09 Oct 2026 15:00:04 UTC)
 - feat(gitaid): add TopLevel to find a working tree's root.
 - feat(gitaid): add Clone that never prompts.
