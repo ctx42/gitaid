@@ -1,3 +1,6 @@
+## v0.11.0 (Fri, 09 Oct 2026 19:34:03 UTC)
+- feat(gitaid): add HasTag and HasRemoteTag.
+
 ## v0.10.0 (Fri, 09 Oct 2026 18:13:44 UTC)
 - feat(gitaid): add Upstream, AheadBehind and Fetch.
 
