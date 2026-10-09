@@ -23,6 +23,7 @@ import (
 	"github.com/ctx42/testing/pkg/assert"
 	"github.com/ctx42/testing/pkg/must"
 	"github.com/ctx42/testkit/pkg/oskit"
+	"github.com/ctx42/testkit/pkg/pathkit"
 	"github.com/ctx42/testkit/pkg/prjkit"
 	"github.com/ctx42/testkit/pkg/randkit"
 )
@@ -475,6 +476,53 @@ func Test_ProjectOrigin(t *testing.T) {
 		// --- Then ---
 		assert.ErrorIs(t, bufio.ErrTooLong, err)
 		assert.Empty(t, have)
+	})
+}
+
+func Test_TopLevel(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := TopLevel(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("top-level directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Close()
+
+		// --- When ---
+		have, err := TopLevel(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, pathkit.EvalSymlinks(t, prj.Root()), have)
+	})
+
+	t.Run("subdirectory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		sub := prj.CreateDir("sub", "dir")
+		prj.Close()
+
+		// --- When ---
+		have, err := TopLevel(ctx, sub)
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, pathkit.EvalSymlinks(t, prj.Root()), have)
 	})
 }
 

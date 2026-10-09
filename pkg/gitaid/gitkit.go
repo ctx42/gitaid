@@ -184,6 +184,14 @@ func ProjectOrigin(ctx context.Context, repo string) (string, error) {
 	return "", nil
 }
 
+// TopLevel returns the absolute path, with symbolic links resolved, of the
+// top-level directory of the working tree holding dir. It returns
+// [ErrNotRepo] when dir is not inside a git working tree. The empty string
+// used for dir means the current working directory.
+func TopLevel(ctx context.Context, dir string) (string, error) {
+	return runGitCmd(ctx, dir, "rev-parse", "--show-toplevel")
+}
+
 // FirstHash returns the abbreviated hash of the first commit in the repo. Git
 // abbreviates to at least seven characters, extending it only as far as needed
 // to stay unambiguous. When merged unrelated histories give HEAD several root

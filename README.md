@@ -26,7 +26,7 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 ## Features
 
 - **Repository inspection** — `IsRepo`, `IsEmpty`, `IsClean`,
-  `WorkTreeStatus`, `Branch`, `ProjectName`, `ProjectOrigin`.
+  `WorkTreeStatus`, `Branch`, `ProjectName`, `ProjectOrigin`, `TopLevel`.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `Describe`, `Derive`, `CountCommits`, `Messages`,
   `ChangeLog`, and `IsHash` to check a commit hash. `Describe` always
