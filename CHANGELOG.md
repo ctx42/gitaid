@@ -1,3 +1,7 @@
+## v0.9.0 (Fri, 09 Oct 2026 15:00:04 UTC)
+- feat(gitaid): add TopLevel to find a working tree's root.
+- feat(gitaid): add Clone that never prompts.
+
 ## v0.8.0 (Thu, 08 Oct 2026 12:10:35 UTC)
 - feat(gitaid): add InitBranch, CommitEmpty and CreateBranch.
 
