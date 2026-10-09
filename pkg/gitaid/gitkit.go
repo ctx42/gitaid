@@ -81,6 +81,10 @@ var (
 	// empty directory.
 	ErrNotEmpty = errors.New("destination not empty")
 
+	// ErrRemote is returned when a remote cannot be queried: it is unknown,
+	// unreachable, refuses access, or does not answer in time.
+	ErrRemote = errors.New("remote unavailable")
+
 	// ErrGit is returned when the git binary fails in a way no other error
 	// covers. It carries git's message and wraps the underlying exec error.
 	ErrGit = errors.New("git error")
@@ -1020,6 +1024,24 @@ func Tag(ctx context.Context, repo, tag, msg string) error {
 	return nil
 }
 
+// HasTag returns true if the repository has the tag. The empty string used
+// for repo means the current working directory.
+func HasTag(ctx context.Context, repo, tag string) (bool, error) {
+	// The "refs/tags/" prefix keeps tag from being read as an option or as
+	// revision syntax such as "v1.0.0^{}".
+	args := []string{"show-ref", "--verify", "--quiet", "refs/tags/" + tag}
+	if _, err := runGitCmd(ctx, repo, args...); err != nil {
+		// A quiet "--verify" exits 1 without a message when the ref does
+		// not exist; anything else is a real failure.
+		ee, ok := errors.AsType[*exec.ExitError](err)
+		if !ok || ee.ExitCode() != 1 {
+			return false, err
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
 // CreateBranch creates branch at HEAD and switches to it. The empty string
 // used for repo means the current working directory.
 func CreateBranch(ctx context.Context, repo, branch string) error {
@@ -1083,6 +1105,53 @@ func Fetch(ctx context.Context, repo string) error {
 		return gitErrorOr(gitMessage(eout.String()), err)
 	}
 	return nil
+}
+
+// HasRemoteTag returns true if the remote, a configured remote name or a URL,
+// has the tag. Git never prompts: a missing credential, an unknown SSH host
+// key, or a passphrase the SSH agent cannot supply fails the query instead of
+// waiting for input. A context without a deadline is given one of 15s. It
+// returns [ErrRemote] when the remote cannot be queried, the 15s running out
+// included; a canceled ctx returns its own error. The empty string used for
+// repo means the current working directory.
+func HasRemoteTag(ctx context.Context, repo, remote, tag string) (bool, error) {
+	if err := noOption(remote); err != nil {
+		return false, err
+	}
+	tctx, cxl := withTimeout(ctx, 15*time.Second)
+	defer cxl()
+
+	ref := "refs/tags/" + tag
+	sout, eout := &bytes.Buffer{}, &bytes.Buffer{}
+	cmd := gitCommand(tctx, "ls-remote", "--tags", "--exit-code", remote, ref)
+	cmd.Env = noPrompt(cmd.Env)
+	cmd.Dir = repo
+	cmd.Stdout, cmd.Stderr = sout, eout
+	if err := cmd.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return false, ctxErr
+		}
+		if tctxErr := tctx.Err(); tctxErr != nil {
+			return false, fmt.Errorf("%w: %s: %w", ErrRemote, remote, tctxErr)
+		}
+		// With "--exit-code" git exits 2 when no ref matches.
+		if ee, ok := errors.AsType[*exec.ExitError](err); ok &&
+			ee.ExitCode() == 2 {
+
+			return false, nil
+		}
+		msg := gitMessage(eout.String())
+		return false, fmt.Errorf("%w: %s: %s: %w", ErrRemote, remote, msg, err)
+	}
+	// The pattern matches the ends of ref names, so "refs/tags/v1" would
+	// also match "refs/tags/x/refs/tags/v1"; only an exact name counts.
+	for line := range strings.Lines(sout.String()) {
+		_, name, _ := strings.Cut(strings.TrimSpace(line), "\t")
+		if name == ref {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Clone clones the repository at url into the directory dst and checks out

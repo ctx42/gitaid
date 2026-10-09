@@ -42,7 +42,8 @@ The entire library is the single package `pkg/gitaid`:
    `Err*` sentinels at the top of `gitkit.go` (`ErrNotRepo`, `ErrEmptyRepo`,
    `ErrUnkRev`, `ErrNoTags`, `ErrNoRemote`, `ErrUnkTag`, `ErrUnkFile`,
    `ErrNotFile`, `ErrDetached`, `ErrNoUpstream`, `ErrUpstreamGone`,
-   `ErrBadArg`, `ErrNotEmpty`, `ErrGit`, plus `ErrBadBump`). `gitErrorOr`
+   `ErrBadArg`, `ErrNotEmpty`, `ErrGit`, plus `ErrBadBump` and `ErrRemote`,
+   which `HasRemoteTag` returns for any remote it cannot query). `gitErrorOr`
    maps git's English stderr text to these via substring matching; an
    unmapped message becomes `ErrGit` wrapping the exec error. When handling a new git failure, add a `case` there rather than
    returning ad-hoc errors — callers rely on `errors.Is`. Because the mapping
@@ -52,14 +53,15 @@ The entire library is the single package `pkg/gitaid`:
 
 2. **No caller value reaches git as an option.** Revisions, tags, remotes, and
    paths pass through `noOption` (returns `ErrBadArg` for a leading `-`), or
-   follow `--` when a leading `-` is a legitimate path (`Add`).
+   follow `--` when a leading `-` is a legitimate path (`Add`), or are
+   prefixed into a full ref name (`HasTag`, `HasRemoteTag`).
 
 3. **`runGitCmd` is the only exec path** (except `GetFile`, which streams
    `git archive` through `archive/tar` to fetch a single file from a remote
    without a full clone, and manages its own timeout/`WaitDelay`, and
    `Clone`, which streams git's output to the caller's writer and runs with
-   the `noPrompt` environment, and `Fetch`, which runs with the `noPrompt`
-   environment too). Prefer
+   the `noPrompt` environment, and `Fetch` and `HasRemoteTag`, which run with
+   the `noPrompt` environment too). Prefer
    routing new commands through `runGitCmd`; anything that must exec git
    builds the command with `gitCommand`, which also drops the inherited
    variables `isRepoVar` names (`GIT_DIR`, `GIT_WORK_TREE`, ...) so `repo`,

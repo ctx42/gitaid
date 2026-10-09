@@ -27,7 +27,8 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 
 - **Repository inspection** — `IsRepo`, `IsEmpty`, `IsClean`,
   `WorkTreeStatus`, `Branch`, `Upstream`, `AheadBehind`, `ProjectName`,
-  `ProjectOrigin`, `TopLevel`.
+  `ProjectOrigin`, `TopLevel`, and `HasTag` / `HasRemoteTag` to check a tag
+  exists locally or on a remote.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `Describe`, `Derive`, `CountCommits`, `Messages`,
   `ChangeLog`, and `IsHash` to check a commit hash. `Describe` always
@@ -224,6 +225,7 @@ condition. Match them with `errors.Is`:
 | `ErrBadArg`       | Argument starts with `-`, which git reads as an option. |
 | `ErrNotEmpty`     | Clone destination exists and is not an empty directory. |
 | `ErrBadBump`      | Bump level is not `patch`, `minor`, or `major`.         |
+| `ErrRemote`       | Remote is unknown, unreachable, or refuses access.      |
 | `ErrGit`          | git exited with an otherwise unrecognized error.        |
 
 `ErrGit` carries git's message and wraps the underlying exec error, so

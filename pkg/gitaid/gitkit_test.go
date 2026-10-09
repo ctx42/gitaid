@@ -3214,6 +3214,100 @@ func Test_Tag(t *testing.T) {
 	})
 }
 
+func Test_HasTag(t *testing.T) {
+	t.Run("existing tag", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasTag(t.Context(), prj.Root(), "v0.1.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.True(t, have)
+	})
+
+	t.Run("tag not reachable from HEAD", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "checkout", "-b", "other")
+		prj.CreateFileWith("file1 1", "file1.txt")
+		prj.GitCommit("v0.2.0", "test commit 2")
+		prj.Exe("git", "checkout", "-")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasTag(t.Context(), prj.Root(), "v0.2.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.True(t, have)
+	})
+
+	t.Run("missing tag", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasTag(t.Context(), prj.Root(), "v0.2.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.False(t, have)
+	})
+
+	t.Run("revision syntax", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasTag(t.Context(), prj.Root(), "v0.1.0^{}")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.False(t, have)
+	})
+
+	t.Run("tag looks like an option", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasTag(t.Context(), prj.Root(), "--head")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.False(t, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := HasTag(t.Context(), prj.Root(), "v0.1.0")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.False(t, have)
+	})
+}
+
 func Test_CreateBranch(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
@@ -3508,6 +3602,144 @@ func Test_Fetch(t *testing.T) {
 
 		// --- Then ---
 		assert.ErrorIs(t, context.Canceled, err)
+	})
+}
+
+func Test_HasRemoteTag(t *testing.T) {
+	t.Run("existing tag", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("v0.1.0", "test commit 1")
+		prj.Exe("git", "push", "--follow-tags", "origin", "HEAD")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasRemoteTag(t.Context(), prj.Root(), "origin", "v0.1.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.True(t, have)
+	})
+
+	t.Run("remote given as URL", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("v0.1.0", "test commit 1")
+		prj.Exe("git", "push", "--follow-tags", "origin", "HEAD")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasRemoteTag(t.Context(), prj.Root(), bare, "v0.1.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.True(t, have)
+	})
+
+	t.Run("tag only local", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "origin", "HEAD")
+		prj.Exe("git", "tag", "-a", "-m", "msg", "v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasRemoteTag(t.Context(), prj.Root(), "origin", "v0.1.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.False(t, have)
+	})
+
+	t.Run("only tag name suffix matches", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("x/refs/tags/v0.1.0", "test commit 1")
+		prj.Exe("git", "push", "--follow-tags", "origin", "HEAD")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasRemoteTag(t.Context(), prj.Root(), "origin", "v0.1.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.False(t, have)
+	})
+
+	t.Run("error - unreachable remote", func(t *testing.T) {
+		// --- Given ---
+		url := filepath.Join(t.TempDir(), "missing.git")
+
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "remote", "add", "origin", url)
+		prj.Close()
+
+		// --- When ---
+		have, err := HasRemoteTag(t.Context(), prj.Root(), "origin", "v0.1.0")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrRemote, err)
+		assert.ErrorContain(t, "does not appear to be a git repository", err)
+		assert.False(t, have)
+	})
+
+	t.Run("error - unknown remote", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := HasRemoteTag(t.Context(), prj.Root(), "origin", "v0.1.0")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrRemote, err)
+		assert.False(t, have)
+	})
+
+	t.Run("error - remote looks like an option", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasRemoteTag(t.Context(), prj.Root(), "--help", "v0.1.0")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.False(t, have)
+	})
+
+	t.Run("error - canceled context", func(t *testing.T) {
+		// --- Given ---
+		ctx, cxl := context.WithCancel(t.Context())
+		cxl()
+
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.Close()
+
+		// --- When ---
+		have, err := HasRemoteTag(ctx, prj.Root(), "origin", "v0.1.0")
+
+		// --- Then ---
+		assert.ErrorIs(t, context.Canceled, err)
+		assert.False(t, have)
 	})
 }
 
