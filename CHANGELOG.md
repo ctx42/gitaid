@@ -1,3 +1,6 @@
+## v0.11.2 (Sat, 10 Oct 2026 19:21:58 UTC)
+- build(deps): update 2 ctx42 dependencies.
+
 ## v0.11.1 (Sat, 10 Oct 2026 19:15:55 UTC)
 - build(deps): update 2 ctx42 dependencies.
 
