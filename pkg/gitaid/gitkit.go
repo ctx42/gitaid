@@ -376,6 +376,67 @@ func ClosestTag(ctx context.Context, repo, startRev string) (string, error) {
 	return rev, nil
 }
 
+// SemVerTag returns the closest tag reachable from HEAD that is a SemVer 2.0
+// version, with or without the leading "v", and the number of commits made
+// since it. Annotated and lightweight tags count alike, and so do
+// pre-releases. Of the tags equally close to HEAD, the one with the highest
+// version precedence wins, and of those the greatest name, so the result never
+// depends on the order git lists the tags in.
+//
+// Unlike [ClosestTag], a tag that is not a version never shadows one that is;
+// unlike [Describe], no version is made up when none is reachable: the result
+// is then the empty string and zero. The empty string used for repo means the
+// current working directory.
+//
+// It returns [ErrEmptyRepo] when the repository has no commits. It needs git
+// 2.41 or newer.
+func SemVerTag(ctx context.Context, repo string) (string, int, error) {
+	// A tag merged into HEAD is never ahead of it, so the "behind" half of
+	// "%(ahead-behind:HEAD)" is the number of commits made since the tag.
+	args := []string{
+		"for-each-ref",
+		"--merged=HEAD",
+		"--format=%(refname:strip=2) %(ahead-behind:HEAD)",
+		"refs/tags",
+	}
+	sout, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return "", 0, err
+	}
+
+	var tag string
+	var since int
+	var ver *semver.Version
+	for line := range strings.SplitSeq(sout, "\n") {
+		// Ref names cannot hold a space, so the first one ends the name.
+		name, counts, _ := strings.Cut(line, " ")
+		cur, err := semver.StrictNewVersion(strings.TrimPrefix(name, "v"))
+		if err != nil {
+			continue
+		}
+		_, behind, _ := strings.Cut(counts, " ")
+		cnt, err := strconv.Atoi(behind)
+		if err != nil {
+			return "", 0, fmt.Errorf("%s: %w", line, err)
+		}
+
+		switch {
+		case ver == nil, cnt < since:
+
+		case cnt > since:
+			continue
+
+		default:
+			cmp := cur.Compare(ver)
+			if cmp < 0 || (cmp == 0 && name < tag) {
+				continue
+			}
+		}
+		tag, since, ver = name, cnt, cur
+	}
+	return tag, since, nil
+}
+
 // DescribeOpt is an option changing the behavior of [Describe].
 type DescribeOpt func(*describeCfg)
 
@@ -1403,6 +1464,9 @@ func gitErrorOr(msg string, err error) error {
 		return ErrUnkRev
 
 	case strings.Contains(msg, "Not a valid object name HEAD"):
+		return ErrEmptyRepo
+
+	case strings.Contains(msg, "malformed object name HEAD"):
 		return ErrEmptyRepo
 
 	case strings.Contains(msg, "Not a valid object name "):

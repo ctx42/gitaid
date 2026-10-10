@@ -30,11 +30,12 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   `ProjectOrigin`, `TopLevel`, and `HasTag` / `HasRemoteTag` to check a tag
   exists locally or on a remote.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
-  `ClosestTag`, `Describe`, `Derive`, `CountCommits`, `Messages`,
-  `ChangeLog`, and `IsHash` to check a commit hash. `Describe` always
-  returns a valid SemVer 2.0 version, and `Derive` builds the one that also
-  *orders* correctly against the releases it descends from — see
-  [docs/versioning.md](docs/versioning.md).
+  `ClosestTag`, `SemVerTag`, `Describe`, `Derive`, `CountCommits`,
+  `Messages`, `ChangeLog`, and `IsHash` to check a commit hash. `SemVerTag`
+  finds the closest version tag and the commits made since it, skipping tags
+  that are not versions. `Describe` always returns a valid SemVer 2.0
+  version, and `Derive` builds the one that also *orders* correctly against
+  the releases it descends from — see [docs/versioning.md](docs/versioning.md).
 - **Mutations** — `Init`, `InitBranch`, `AddRemote`, `Add`, `AddAll`,
   `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`, `Clone`, and
   `Fetch`; `Clone` and `Fetch` never prompt for credentials, host keys, or
@@ -49,7 +50,7 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 ## Prerequisites
 
 - Go 1.26 or newer.
-- Git 2.31 or newer on `PATH`.
+- Git 2.41 or newer on `PATH`.
 
 ## Installation
 

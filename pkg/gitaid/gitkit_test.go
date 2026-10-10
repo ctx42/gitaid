@@ -1290,6 +1290,273 @@ func Test_ClosestTag(t *testing.T) {
 	})
 }
 
+func Test_SemVerTag(t *testing.T) {
+	t.Run("HEAD tagged", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.1.0", have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("commits after tag", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.1.0", have)
+		assert.Equal(t, 2, since)
+	})
+
+	t.Run("lightweight tag", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "tag", "v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.1.0", have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("tag without v prefix", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("1.2.0")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "1.2.0", have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("closer tag not a version", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v1.2.0")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("nightly")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.2.0", have)
+		assert.Equal(t, 2, since)
+	})
+
+	t.Run("closer pre-release", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v1.2.0")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("v1.3.0-rc.1")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.3.0-rc.1", have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("release and pre-release on one commit", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v1.2.0-rc.2")
+		prj.Exe("git", "tag", "v1.2.0")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.2.0", have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("equal precedence on one commit", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v1.2.0")
+		prj.Exe("git", "tag", "1.2.0")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v1.2.0", have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("equally close tags on merged parents", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "checkout", "-b", "side")
+		prj.CreateFileWith("file1", "file1.txt")
+		prj.GitCommit("v2.0.0")
+		prj.Exe("git", "checkout", "-")
+		prj.CreateFileWith("file2", "file2.txt")
+		prj.GitCommit("v10.0.0")
+		prj.Exe("git", "merge", "--no-edit", "side")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v10.0.0", have)
+		assert.Equal(t, 2, since)
+	})
+
+	t.Run("tag not reachable from HEAD", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.Exe("git", "checkout", "-b", "side")
+		prj.CreateFileWith("file1", "file1.txt")
+		prj.GitCommit("v0.2.0")
+		prj.Exe("git", "checkout", "-")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.1.0", have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("detached HEAD", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("")
+		prj.GitDetach()
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, "v0.1.0", have)
+		assert.Equal(t, 1, since)
+	})
+
+	t.Run("no tag a version", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll("v1.2")
+		prj.Exe("git", "tag", "2026-01-15")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Empty(t, have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("no tags", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Empty(t, have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("error - empty git repo", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrEmptyRepo, err)
+		assert.Empty(t, have)
+		assert.Equal(t, 0, since)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, since, err := SemVerTag(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+		assert.Equal(t, 0, since)
+	})
+}
+
 func Test_WithMatch(t *testing.T) {
 	t.Run("sets the match glob", func(t *testing.T) {
 		// --- Given ---
@@ -4508,6 +4775,12 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 		{
 			"invalid object HEAD empty repo",
 			"Not a valid object name HEAD",
+			ErrTest,
+			ErrEmptyRepo,
+		},
+		{
+			"malformed object HEAD empty repo",
+			"malformed object name HEAD",
 			ErrTest,
 			ErrEmptyRepo,
 		},
