@@ -1,3 +1,6 @@
+## v0.12.0 (Sat, 10 Oct 2026 20:33:19 UTC)
+- feat(gitaid): add SemVerTag to find the closest version tag.
+
 ## v0.11.2 (Sat, 10 Oct 2026 19:21:58 UTC)
 - build(deps): update 2 ctx42 dependencies.
 
