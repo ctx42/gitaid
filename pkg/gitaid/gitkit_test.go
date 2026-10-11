@@ -2411,6 +2411,58 @@ func Test_Derive(t *testing.T) {
 	})
 }
 
+func Test_Bumped(t *testing.T) {
+	t.Run("error - unknown bump", func(t *testing.T) {
+		// --- When ---
+		have, err := Bumped("v1.2.3", "sideways")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadBump, err)
+		assert.Equal(t, "", have)
+	})
+
+	t.Run("error - not a version", func(t *testing.T) {
+		// --- When ---
+		have, err := Bumped("nightly", BumpPatch)
+
+		// --- Then ---
+		assert.ErrorIs(t, semver.ErrInvalidSemVer, err)
+		assert.ErrorContain(t, "nightly", err)
+		assert.Equal(t, "", have)
+	})
+}
+
+func Test_Bumped_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		ver  string
+		bump string
+		want string
+	}{
+		{"major", "v1.2.3", BumpMajor, "v2.0.0"},
+		{"minor", "v1.2.3", BumpMinor, "v1.3.0"},
+		{"patch", "v1.2.3", BumpPatch, "v1.2.4"},
+		{"empty is patch", "v1.2.3", "", "v1.2.4"},
+		{"no v prefix", "1.2.3", BumpMinor, "1.3.0"},
+		{"major below 1 is minor", "v0.15.3", BumpMajor, "v0.16.0"},
+		{"pre-release major", "v1.1.0-rc.1", BumpMajor, "v2.0.0"},
+		{"pre-release minor", "v1.1.0-rc.1", BumpMinor, "v1.2.0"},
+		{"pre-release patch", "v1.1.0-rc.1", BumpPatch, "v1.1.0"},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			have, err := Bumped(tc.ver, tc.bump)
+
+			// --- Then ---
+			assert.NoError(t, err)
+			assert.Equal(t, tc.want, have)
+		})
+	}
+}
+
 func Test_bumped(t *testing.T) {
 	t.Run("error - unknown bump", func(t *testing.T) {
 		// --- Given ---

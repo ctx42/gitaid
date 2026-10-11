@@ -30,12 +30,13 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   `ProjectOrigin`, `TopLevel`, and `HasTag` / `HasRemoteTag` to check a tag
   exists locally or on a remote.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
-  `ClosestTag`, `SemVerTag`, `Describe`, `Derive`, `CountCommits`,
+  `ClosestTag`, `SemVerTag`, `Describe`, `Derive`, `Bumped`, `CountCommits`,
   `Messages`, `ChangeLog`, and `IsHash` to check a commit hash. `SemVerTag`
   finds the closest version tag and the commits made since it, skipping tags
   that are not versions. `Describe` always returns a valid SemVer 2.0
   version, and `Derive` builds the one that also *orders* correctly against
   the releases it descends from — see [docs/versioning.md](docs/versioning.md).
+  `Bumped` advances a release by a bump level the way `Derive` does.
 - **Mutations** — `Init`, `InitBranch`, `AddRemote`, `Add`, `AddAll`,
   `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`, `Clone`, and
   `Fetch`; `Clone` and `Fetch` never prompt for credentials, host keys, or

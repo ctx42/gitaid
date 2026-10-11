@@ -188,7 +188,15 @@ a gap nobody fills where guessing high publishes a version that outranks a
 real release. Read it off the commits with [Messages] if the project uses
 Conventional Commits, or take it from configuration.
 
+The bump step itself is exported as [Bumped], for a caller that needs the
+next release rather than a development build, such as one cut from a commit
+that is already a release. Like `Derive`, it advances the minor for a
+`major` bump of a 0.x version. It has no pre-release exception, since there
+is no development build to keep above the tag: a `patch` bump of
+`v1.0.0-rc.1` is `v1.0.0`.
+
 [Messages]: https://pkg.go.dev/github.com/ctx42/gitaid/pkg/gitaid#Messages
+[Bumped]: https://pkg.go.dev/github.com/ctx42/gitaid/pkg/gitaid#Bumped
 
 Note the two words in that string, because the ctx42 modules keep them
 distinct everywhere:

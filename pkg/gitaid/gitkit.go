@@ -842,6 +842,30 @@ func Derive(
 	return ver, nil
 }
 
+// Bumped returns the release ver advances to by one bump level, in the form
+// ver uses, so a "v" prefix stays. It is the step [Derive] advances the tag it
+// describes by, for a caller that needs the next release itself, such as one
+// cut from a commit already tagged. On a 0.x version a major bump advances the
+// minor instead, and a pre-release loses its label: a patch bump of
+// v1.1.0-rc.1 is v1.1.0, a minor bump v1.2.0. Unlike [Derive], it never
+// extends a pre-release under a patch bump, since no development build has to
+// rank above the tag.
+//
+// The bump is one of [BumpPatch], [BumpMinor] or [BumpMajor]; an empty string
+// means [BumpPatch]. It returns [ErrBadBump] for an unknown bump, and an error
+// when ver is not a semantic version.
+func Bumped(ver, bump string) (string, error) {
+	base, err := semver.NewVersion(ver)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", ver, err)
+	}
+	next, err := bumped(base, bump)
+	if err != nil {
+		return "", err
+	}
+	return next.Original(), nil
+}
+
 // bumped returns the release base advances to by one bump level. On a 0.x
 // version a major bump advances the minor instead: SemVer leaves 0.y.z
 // explicitly unstable, and a project is not declaring 1.0.0 by writing one
