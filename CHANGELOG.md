@@ -1,3 +1,6 @@
+## v0.13.0 (Sun, 11 Oct 2026 13:10:24 UTC)
+- feat(gitaid): add Bumped to advance a release by a bump level.
+
 ## v0.12.0 (Sat, 10 Oct 2026 20:33:19 UTC)
 - feat(gitaid): add SemVerTag to find the closest version tag.
 
