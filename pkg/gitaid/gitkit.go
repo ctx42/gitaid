@@ -1140,11 +1140,12 @@ func CreateBranch(ctx context.Context, repo, branch string) error {
 	return nil
 }
 
-// Push pushes the current branch and its annotated tags to the origin. A
-// context without a deadline is given one of 15s. It returns [ErrDetached]
-// when HEAD is detached, because then there is no branch to push, and
-// [ErrNoRemote] when the repository has no origin. The empty string used for
-// repo means the current working directory.
+// Push pushes the current branch and its annotated tags to the origin. The
+// push is atomic: when the origin rejects the branch, for example because it
+// moved ahead, no tag is pushed either. A context without a deadline is given
+// one of 15s. It returns [ErrDetached] when HEAD is detached, because then
+// there is no branch to push, and [ErrNoRemote] when the repository has no
+// origin. The empty string used for repo means the current working directory.
 func Push(ctx context.Context, repo string) error {
 	ctx, cxl := withTimeout(ctx, 15*time.Second)
 	defer cxl()
@@ -1157,7 +1158,7 @@ func Push(ctx context.Context, repo string) error {
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
 	}
-	args = []string{"push", "--follow-tags", "origin", "HEAD"}
+	args = []string{"push", "--atomic", "--follow-tags", "origin", "HEAD"}
 	if _, err := runGitCmd(ctx, repo, args...); err != nil {
 		return err
 	}

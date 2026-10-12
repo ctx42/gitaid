@@ -3800,6 +3800,36 @@ func Test_Push(t *testing.T) {
 		assert.Equal(t, branch, prj1.ReadFileStr("file0.txt"))
 		assert.Empty(t, prj1.ExeStdout("git", "tag", "-n99"))
 	})
+
+	t.Run("error - origin ahead pushes no tag", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		prj0 := prjkit.New(t, t.TempDir())
+		prj0.Exe("git", "clone", bare, ".")
+		prj0.CreateFileWith("file0 1", "file0.txt")
+		prj0.GitCommit("", "test commit 1")
+		prj0.Exe("git", "push", "origin", "HEAD")
+
+		prj1 := prjkit.New(t, t.TempDir())
+		prj1.Exe("git", "clone", bare, ".")
+		prj1.CreateFileWith("file1 1", "file1.txt")
+		prj1.GitCommit("", "test commit 2")
+		prj1.Exe("git", "push", "origin", "HEAD")
+		prj1.Close()
+
+		prj0.CreateFileWith("file0 2", "file0.txt")
+		prj0.GitCommit("", "test commit 3")
+		prj0.Exe("git", "tag", "-a", "-m", "tag-msg", "v1.0.0")
+		prj0.Close()
+
+		// --- When ---
+		err := Push(t.Context(), prj0.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrGit, err)
+		assert.Empty(t, prj0.ExeStdout("git", "ls-remote", "--tags", bare))
+	})
 }
 
 func Test_Fetch(t *testing.T) {
