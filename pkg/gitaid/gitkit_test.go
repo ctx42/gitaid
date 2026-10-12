@@ -3627,6 +3627,52 @@ func Test_HasTag(t *testing.T) {
 	})
 }
 
+func Test_Tags(t *testing.T) {
+	t.Run("sorted by name", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll("v0.2.0")
+		prj.Exe("git", "tag", "v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := Tags(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"v0.1.0", "v0.2.0"}, have)
+	})
+
+	t.Run("no tags", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := Tags(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := Tags(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Nil(t, have)
+	})
+}
+
 func Test_CreateBranch(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
@@ -4089,6 +4135,73 @@ func Test_HasRemoteTag(t *testing.T) {
 		// --- Then ---
 		assert.ErrorIs(t, context.Canceled, err)
 		assert.False(t, have)
+	})
+}
+
+func Test_RemoteTags(t *testing.T) {
+	t.Run("sorted by name", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("v0.2.0", "test commit 1")
+		prj.Exe("git", "tag", "v0.1.0")
+		prj.Exe("git", "push", "origin", "HEAD", "--tags")
+		prj.Exe("git", "tag", "-a", "-m", "msg", "v0.3.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := RemoteTags(t.Context(), prj.Root(), "origin")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"v0.1.0", "v0.2.0"}, have)
+	})
+
+	t.Run("no tags", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "origin", "HEAD")
+		prj.Close()
+
+		// --- When ---
+		have, err := RemoteTags(t.Context(), prj.Root(), "origin")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - unknown remote", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := RemoteTags(t.Context(), prj.Root(), "origin")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrRemote, err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - remote looks like an option", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.Close()
+
+		// --- When ---
+		have, err := RemoteTags(t.Context(), prj.Root(), "--help")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Nil(t, have)
 	})
 }
 

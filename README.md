@@ -27,8 +27,8 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 
 - **Repository inspection** — `IsRepo`, `IsEmpty`, `IsClean`,
   `WorkTreeStatus`, `Branch`, `Upstream`, `AheadBehind`, `ProjectName`,
-  `ProjectOrigin`, `TopLevel`, and `HasTag` / `HasRemoteTag` to check a tag
-  exists locally or on a remote.
+  `ProjectOrigin`, `TopLevel`, `HasTag` / `HasRemoteTag` to check a tag
+  exists locally or on a remote, and `Tags` / `RemoteTags` to list them.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `SemVerTag`, `Describe`, `Derive`, `Bumped`, `CountCommits`,
   `Messages`, `ChangeLog`, and `IsHash` to check a commit hash. `SemVerTag`

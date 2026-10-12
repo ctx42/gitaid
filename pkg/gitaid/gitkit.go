@@ -1127,6 +1127,20 @@ func HasTag(ctx context.Context, repo, tag string) (bool, error) {
 	return true, nil
 }
 
+// Tags returns the names of the repository's tags, sorted by name; nil when
+// it has none. The empty string used for repo means the current working
+// directory.
+func Tags(ctx context.Context, repo string) ([]string, error) {
+	sout, err := runGitCmd(ctx, repo, "tag", "--list")
+	if err != nil {
+		return nil, err
+	}
+	if sout == "" {
+		return nil, nil
+	}
+	return strings.Split(sout, "\n"), nil
+}
+
 // CreateBranch creates branch at HEAD and switches to it. The empty string
 // used for repo means the current working directory.
 func CreateBranch(ctx context.Context, repo, branch string) error {
@@ -1201,43 +1215,78 @@ func Fetch(ctx context.Context, repo string) error {
 // included; a canceled ctx returns its own error. The empty string used for
 // repo means the current working directory.
 func HasRemoteTag(ctx context.Context, repo, remote, tag string) (bool, error) {
-	if err := noOption(remote); err != nil {
+	ref := "refs/tags/" + tag
+	refs, err := lsRemoteTags(ctx, repo, remote, ref)
+	if err != nil {
 		return false, err
+	}
+	// The pattern matches the ends of ref names, so "refs/tags/v1" would
+	// also match "refs/tags/x/refs/tags/v1"; only an exact name counts.
+	return slices.Contains(refs, ref), nil
+}
+
+// RemoteTags returns the names of the tags the remote, a configured remote
+// name or a URL, has, sorted by name; nil when it has none. It queries the
+// remote the way [HasRemoteTag] does and returns the same errors. The empty
+// string used for repo means the current working directory.
+func RemoteTags(ctx context.Context, repo, remote string) ([]string, error) {
+	refs, err := lsRemoteTags(ctx, repo, remote)
+	if err != nil {
+		return nil, err
+	}
+	var tags []string
+	for _, ref := range refs {
+		tags = append(tags, strings.TrimPrefix(ref, "refs/tags/"))
+	}
+	slices.Sort(tags)
+	return tags, nil
+}
+
+// lsRemoteTags returns the full names of the remote's tag refs matching the
+// patterns, every tag when none is given, without the peeled "^{}" entries.
+// It is the query behind [HasRemoteTag] and [RemoteTags], and returns their
+// errors.
+func lsRemoteTags(
+	ctx context.Context,
+	repo string,
+	remote string,
+	patterns ...string,
+) ([]string, error) {
+
+	if err := noOption(remote); err != nil {
+		return nil, err
 	}
 	tctx, cxl := withTimeout(ctx, 15*time.Second)
 	defer cxl()
 
-	ref := "refs/tags/" + tag
+	args := []string{"ls-remote", "--tags", "--refs", "--exit-code", remote}
 	sout, eout := &bytes.Buffer{}, &bytes.Buffer{}
-	cmd := gitCommand(tctx, "ls-remote", "--tags", "--exit-code", remote, ref)
+	cmd := gitCommand(tctx, append(args, patterns...)...)
 	cmd.Env = noPrompt(cmd.Env)
 	cmd.Dir = repo
 	cmd.Stdout, cmd.Stderr = sout, eout
 	if err := cmd.Run(); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return false, ctxErr
+			return nil, ctxErr
 		}
 		if tctxErr := tctx.Err(); tctxErr != nil {
-			return false, fmt.Errorf("%w: %s: %w", ErrRemote, remote, tctxErr)
+			return nil, fmt.Errorf("%w: %s: %w", ErrRemote, remote, tctxErr)
 		}
 		// With "--exit-code" git exits 2 when no ref matches.
 		if ee, ok := errors.AsType[*exec.ExitError](err); ok &&
 			ee.ExitCode() == 2 {
 
-			return false, nil
+			return nil, nil
 		}
 		msg := gitMessage(eout.String())
-		return false, fmt.Errorf("%w: %s: %s: %w", ErrRemote, remote, msg, err)
+		return nil, fmt.Errorf("%w: %s: %s: %w", ErrRemote, remote, msg, err)
 	}
-	// The pattern matches the ends of ref names, so "refs/tags/v1" would
-	// also match "refs/tags/x/refs/tags/v1"; only an exact name counts.
+	var refs []string
 	for line := range strings.Lines(sout.String()) {
 		_, name, _ := strings.Cut(strings.TrimSpace(line), "\t")
-		if name == ref {
-			return true, nil
-		}
+		refs = append(refs, name)
 	}
-	return false, nil
+	return refs, nil
 }
 
 // Clone clones the repository at url into the directory dst and checks out
