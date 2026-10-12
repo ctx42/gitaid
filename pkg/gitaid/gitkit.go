@@ -1074,6 +1074,30 @@ func AddAll(ctx context.Context, repo string) error {
 	return nil
 }
 
+// Staged returns the paths, relative to the top of the working tree, of the
+// files staged for the next commit, sorted; nil when nothing is staged. It
+// returns [ErrNotRepo] outside a repository. The empty string used for repo
+// means the current working directory.
+func Staged(ctx context.Context, repo string) ([]string, error) {
+	// Outside a repository "git diff" compares paths instead and fails on
+	// an unknown option, so the repository is checked first.
+	if err := IsRepo(ctx, repo); err != nil {
+		return nil, err
+	}
+	args := []string{"diff", "--cached", "--name-only", "-z"}
+	sout, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return nil, err
+	}
+	var pths []string
+	for pth := range strings.SplitSeq(sout, "\x00") {
+		if pth != "" {
+			pths = append(pths, pth)
+		}
+	}
+	return pths, nil
+}
+
 // Commit commits with a message. The empty string used for repo means the
 // current working directory.
 func Commit(ctx context.Context, repo, msg string) error {

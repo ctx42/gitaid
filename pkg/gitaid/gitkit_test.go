@@ -3350,6 +3350,56 @@ func Test_AddAll(t *testing.T) {
 	})
 }
 
+func Test_Staged(t *testing.T) {
+	t.Run("staged files", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.CreateFileWith("b", "b c.txt")
+		prj.CreateFileWith("not staged", "z.txt")
+		prj.Exe("git", "add", "file0.txt", "b c.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := Staged(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"b c.txt", "file0.txt"}, have)
+	})
+
+	t.Run("nothing staged", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := Staged(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := Staged(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Nil(t, have)
+	})
+}
+
 func Test_Commit(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
