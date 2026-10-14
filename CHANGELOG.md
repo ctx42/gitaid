@@ -1,3 +1,6 @@
+## v0.17.0 (Wed, 14 Oct 2026 16:14:41 UTC)
+- feat(gitaid): add Pull to rebase a branch onto its upstream.
+
 ## v0.16.0 (Wed, 14 Oct 2026 06:50:10 UTC)
 - feat(gitaid): add WorkTreeFiles to list committable files.
 - feat(gitaid): add HashFiles to compute file object IDs.
