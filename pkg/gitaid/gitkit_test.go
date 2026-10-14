@@ -3400,6 +3400,61 @@ func Test_Staged(t *testing.T) {
 	})
 }
 
+func Test_WorkTreeFiles(t *testing.T) {
+	t.Run("tracked and untracked", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("bin\n", ".gitignore")
+		prj.CreateFileWith("a", "a.txt")
+		prj.CreateFileWith("gone", "gone.txt")
+		prj.CreateFileWith("c", "sub", "c d.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("a 2", "a.txt")
+		prj.CreateFileWith("new", "b.txt")
+		prj.CreateFileWith("ignored", "bin")
+		prj.Exe("rm", "gone.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := WorkTreeFiles(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		want := []string{".gitignore", "a.txt", "b.txt", "sub/c d.txt"}
+		assert.Equal(t, want, have)
+	})
+
+	t.Run("subdirectory", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("a", "a.txt")
+		prj.CreateFileWith("c", "sub", "c.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("d", "sub", "d.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := WorkTreeFiles(t.Context(), prj.Path("sub"))
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"c.txt", "d.txt"}, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := WorkTreeFiles(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Nil(t, have)
+	})
+}
+
 func Test_Commit(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---

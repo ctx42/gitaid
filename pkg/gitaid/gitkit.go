@@ -1098,6 +1098,39 @@ func Staged(ctx context.Context, repo string) ([]string, error) {
 	return pths, nil
 }
 
+// WorkTreeFiles returns the paths, relative to repo, of the files under repo
+// that git tracks or does not ignore, sorted: the files a commit of
+// everything would hold. Deleted files and directories, such as submodules
+// and nested repositories, are left out. It returns [ErrNotRepo] outside a
+// repository. The empty string used for repo means the current working
+// directory.
+func WorkTreeFiles(ctx context.Context, repo string) ([]string, error) {
+	if err := IsRepo(ctx, repo); err != nil {
+		return nil, err
+	}
+	args := []string{
+		"ls-files", "-z", "--cached", "--others", "--exclude-standard",
+		"--deduplicate",
+	}
+	sout, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return nil, err
+	}
+	var pths []string
+	for pth := range strings.SplitSeq(sout, "\x00") {
+		if pth == "" || strings.HasSuffix(pth, "/") {
+			continue
+		}
+		inf, err := os.Lstat(filepath.Join(repo, pth))
+		if err != nil || inf.IsDir() {
+			continue // Deleted, or a submodule.
+		}
+		pths = append(pths, pth)
+	}
+	slices.Sort(pths)
+	return slices.Compact(pths), nil
+}
+
 // Commit commits with a message. The empty string used for repo means the
 // current working directory.
 func Commit(ctx context.Context, repo, msg string) error {
