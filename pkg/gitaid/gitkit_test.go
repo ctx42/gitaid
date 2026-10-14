@@ -3455,6 +3455,85 @@ func Test_WorkTreeFiles(t *testing.T) {
 	})
 }
 
+func Test_HashFiles(t *testing.T) {
+	t.Run("object IDs in order", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("hello\n", "b.txt")
+		prj.CreateFileWith("", "a b.txt")
+		prj.Exe("git", "init", "-q")
+		prj.Close()
+
+		// --- When ---
+		have, err := HashFiles(t.Context(), prj.Root(), "b.txt", "a b.txt")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		want := []string{
+			"ce013625030ba8dba906f756967f9e9ca394464a",
+			"e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+		}
+		assert.Equal(t, want, have)
+	})
+
+	t.Run("subdirectory", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("hello\n", "sub", "b.txt")
+		prj.Exe("git", "init", "-q")
+		prj.Close()
+
+		// --- When ---
+		have, err := HashFiles(t.Context(), prj.Path("sub"), "b.txt")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		want := []string{"ce013625030ba8dba906f756967f9e9ca394464a"}
+		assert.Equal(t, want, have)
+	})
+
+	t.Run("no files", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init", "-q")
+		prj.Close()
+
+		// --- When ---
+		have, err := HashFiles(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - missing file", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init", "-q")
+		prj.Close()
+
+		// --- When ---
+		have, err := HashFiles(t.Context(), prj.Root(), "none.txt")
+
+		// --- Then ---
+		assert.ErrorContain(t, "none.txt", err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := HashFiles(t.Context(), prj.Root(), "a.txt")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Nil(t, have)
+	})
+}
+
 func Test_Commit(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---

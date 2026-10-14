@@ -1131,6 +1131,46 @@ func WorkTreeFiles(ctx context.Context, repo string) ([]string, error) {
 	return slices.Compact(pths), nil
 }
 
+// HashFiles returns the git object ID of the content of each file at pths,
+// relative to repo, in the order of pths, without writing anything to the
+// object database. It returns [ErrNotRepo] outside a repository. The empty
+// string used for repo means the current working directory.
+func HashFiles(
+	ctx context.Context,
+	repo string,
+	pths ...string,
+) ([]string, error) {
+
+	if err := IsRepo(ctx, repo); err != nil {
+		return nil, err
+	}
+	if len(pths) == 0 {
+		return nil, nil
+	}
+	// Git reads the paths from the top of the working tree, not from repo.
+	var buf strings.Builder
+	for _, pth := range pths {
+		abs, err := filepath.Abs(filepath.Join(repo, pth))
+		if err != nil {
+			return nil, err
+		}
+		buf.WriteString(abs + "\n")
+	}
+	sout, eout := &bytes.Buffer{}, &bytes.Buffer{}
+	cmd := gitCommand(ctx, "hash-object", "--stdin-paths")
+	cmd.Stdin = strings.NewReader(buf.String())
+	cmd.Stdout, cmd.Stderr, cmd.Dir = sout, eout, repo
+	if err := cmd.Run(); err != nil {
+		return nil, gitErrorOr(gitMessage(eout.String()), err)
+	}
+	ids := strings.Fields(sout.String())
+	if len(ids) != len(pths) {
+		format := "hash-object: %d IDs for %d files"
+		return nil, fmt.Errorf(format, len(ids), len(pths))
+	}
+	return ids, nil
+}
+
 // Commit commits with a message. The empty string used for repo means the
 // current working directory.
 func Commit(ctx context.Context, repo, msg string) error {
