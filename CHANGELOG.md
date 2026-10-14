@@ -1,3 +1,7 @@
+## v0.16.0 (Wed, 14 Oct 2026 06:50:10 UTC)
+- feat(gitaid): add WorkTreeFiles to list committable files.
+- feat(gitaid): add HashFiles to compute file object IDs.
+
 ## v0.15.0 (Mon, 12 Oct 2026 14:37:05 UTC)
 - feat(gitaid): add Staged to list files staged for commit.
 
