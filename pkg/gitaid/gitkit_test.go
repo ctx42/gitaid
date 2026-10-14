@@ -4184,6 +4184,311 @@ func Test_Fetch(t *testing.T) {
 	})
 }
 
+func Test_Pull(t *testing.T) {
+	t.Run("fast-forward", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file1 1", "file1.txt")
+		other.GitCommit("", "test commit 2")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Close()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+
+		want := other.ExeStdout("git", "rev-parse", "HEAD")
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+		assert.Equal(t, "file1 1", prj.ReadFileStr("file1.txt"))
+	})
+
+	t.Run("rebases local commits", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.CreateFileWith("file2 1", "file2.txt")
+		prj.GitCommit("", "test commit 3")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file1 1", "file1.txt")
+		other.GitCommit("", "test commit 2")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Close()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+
+		want := other.ExeStdout("git", "rev-parse", "HEAD")
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD~1"))
+		have := prj.ExeStdout("git", "log", "-1", "--format=%s")
+		assert.Equal(t, "test commit 3\n", have)
+		assert.Equal(t, "file1 1", prj.ReadFileStr("file1.txt"))
+		assert.Equal(t, "file2 1", prj.ReadFileStr("file2.txt"))
+	})
+
+	t.Run("up to date", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.Close()
+
+		want := prj.ExeStdout("git", "rev-parse", "HEAD")
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+	})
+
+	t.Run("error - dirty", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file1 1", "file1.txt")
+		other.GitCommit("", "test commit 2")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Close()
+
+		want := prj.ExeStdout("git", "rev-parse", "HEAD")
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrDirty, err)
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+		assert.Equal(t, "file0 2", prj.ReadFileStr("file0.txt"))
+	})
+
+	t.Run("error - conflict", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", "test commit 2")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file0 3", "file0.txt")
+		other.GitCommit("", "test commit 3")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Close()
+
+		want := prj.ExeStdout("git", "rev-parse", "HEAD")
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrConflict, err)
+		assert.ErrorContain(t, "could not apply", err)
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+		assert.Equal(t, prjkit.GitBranch, must.Value(Branch(ctx, prj.Root())))
+		assert.True(t, must.Value(IsClean(ctx, prj.Root())))
+	})
+
+	t.Run("error - upstream deleted", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+		branch := randkit.Str()
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.Exe("git", "checkout", "-b", branch)
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", branch)
+		prj.Exe("git", "--git-dir", bare, "branch", "-D", branch)
+		prj.Close()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUpstreamGone, err)
+	})
+
+	t.Run("error - no upstream", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNoUpstream, err)
+	})
+
+	t.Run("error - detached head", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.Exe("git", "checkout", "--detach")
+		prj.Close()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrDetached, err)
+	})
+
+	t.Run("error - unreachable upstream", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		url := filepath.Join(t.TempDir(), "missing.git")
+		prj.Exe("git", "remote", "set-url", "origin", url)
+		prj.Close()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrGit, err)
+		assert.ErrorContain(t, "does not appear to be a git repository", err)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+	})
+
+	t.Run("error - canceled context", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.Close()
+
+		ctx, cxl := context.WithCancel(t.Context())
+		cxl()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, context.Canceled, err)
+	})
+}
+
+func Test_abortRebase(t *testing.T) {
+	t.Run("aborts rebase in progress", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "checkout", "-b", "side")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", "test commit 2")
+		prj.Exe("git", "checkout", prjkit.GitBranch)
+		prj.CreateFileWith("file0 3", "file0.txt")
+		prj.GitCommit("", "test commit 3")
+		prj.Close()
+
+		want := prj.ExeStdout("git", "rev-parse", "HEAD")
+		cmd := exec.Command("git", "rebase", "side")
+		cmd.Dir = prj.Root()
+		_ = cmd.Run() // Stops on the conflict.
+
+		ctx, cxl := context.WithCancel(t.Context())
+		cxl()
+
+		// --- When ---
+		err := abortRebase(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+		assert.Equal(t, "file0 3", prj.ReadFileStr("file0.txt"))
+	})
+
+	t.Run("error - no rebase in progress", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		err := abortRebase(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, errNoRebase, err)
+	})
+}
+
 func Test_HasRemoteTag(t *testing.T) {
 	t.Run("existing tag", func(t *testing.T) {
 		// --- Given ---
@@ -5253,6 +5558,31 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 				"empty directory.",
 			ErrTest,
 			ErrNotEmpty,
+		},
+		{
+			"pull over unstaged changes",
+			"error: cannot pull with rebase: You have unstaged changes.",
+			ErrTest,
+			ErrDirty,
+		},
+		{
+			"upstream branch not fetched",
+			"Your configuration specifies to merge with the ref " +
+				"'refs/heads/x'",
+			ErrTest,
+			ErrUpstreamGone,
+		},
+		{
+			"no rebase in progress",
+			"fatal: no rebase in progress",
+			ErrTest,
+			errNoRebase,
+		},
+		{
+			"no rebase in progress older git",
+			"fatal: No rebase in progress?",
+			ErrTest,
+			errNoRebase,
 		},
 	}
 

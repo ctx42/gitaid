@@ -39,9 +39,10 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   the releases it descends from — see [docs/versioning.md](docs/versioning.md).
   `Bumped` advances a release by a bump level the way `Derive` does.
 - **Mutations** — `Init`, `InitBranch`, `AddRemote`, `Add`, `AddAll`,
-  `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`, `Clone`, and
-  `Fetch`; `Clone` and `Fetch` never prompt for credentials, host keys, or
-  passphrases.
+  `Commit`, `CommitEmpty`, `Tag`, `CreateBranch`, `Push`, `Clone`, `Fetch`,
+  and `Pull`; `Clone`, `Fetch`, and `Pull` never prompt for credentials, host
+  keys, or passphrases. `Pull` rebases onto the upstream and aborts a rebase
+  that stops on a conflict.
 - **Fetch one file without cloning** — `GetFile` streams a single file from a
   remote branch or tag via `git archive`.
 - **Typed sentinel errors** — branch on `errors.Is` instead of parsing stderr,

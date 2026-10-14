@@ -85,9 +85,21 @@ var (
 	// unreachable, refuses access, or does not answer in time.
 	ErrRemote = errors.New("remote unavailable")
 
+	// ErrDirty is returned when the working tree or the index has
+	// uncommitted changes to tracked files that an operation will not work
+	// over.
+	ErrDirty = errors.New("uncommitted changes")
+
+	// ErrConflict is returned when a rebase stops on a conflict.
+	ErrConflict = errors.New("rebase conflict")
+
 	// ErrGit is returned when the git binary fails in a way no other error
 	// covers. It carries git's message and wraps the underlying exec error.
 	ErrGit = errors.New("git error")
+
+	// errNoRebase is returned when a rebase is to be aborted but none is in
+	// progress.
+	errNoRebase = errors.New("no rebase in progress")
 )
 
 // IsRepo returns nil if dir is an initialized git repository, otherwise it
@@ -1304,6 +1316,68 @@ func Fetch(ctx context.Context, repo string) error {
 	return nil
 }
 
+// Pull fetches the upstream of the branch checked out in the repository and
+// rebases the branch onto it, as "git pull --rebase" does; a branch with no
+// commits of its own is fast-forwarded. Uncommitted changes are never
+// stashed: with changes to tracked files it returns [ErrDirty] and leaves the
+// branch alone. A rebase stopped by a conflict is aborted, restoring the
+// branch and the working tree, and [ErrConflict] is returned. It returns the
+// errors [Upstream] returns when there is no upstream to pull from, and
+// [ErrUpstreamGone] also when the fetch finds the upstream deleted. Git never
+// prompts: a missing credential, an unknown SSH host key, or a passphrase the
+// SSH agent cannot supply fails the pull instead of waiting for input. The
+// pull has no default timeout; ctx bounds it, and a rebase left in progress
+// by its cancellation is aborted. The empty string used for repo means the
+// current working directory.
+func Pull(ctx context.Context, repo string) error {
+	// Upstream also makes sure HEAD is attached, which it is not while a
+	// rebase is in progress, so any rebase found after a failure is the
+	// pull's own.
+	if _, err := Upstream(ctx, repo); err != nil {
+		return err
+	}
+	eout := &bytes.Buffer{}
+	args := []string{"pull", "--quiet", "--rebase", "--no-autostash"}
+	cmd := gitCommand(ctx, args...)
+	cmd.Env = noPrompt(cmd.Env)
+	cmd.Dir = repo
+	cmd.Stderr = eout
+	err := cmd.Run()
+	if err == nil {
+		return nil
+	}
+	err = gitErrorOr(gitMessage(eout.String()), err)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		err = ctxErr
+	}
+	abortErr := abortRebase(ctx, repo)
+	switch {
+	case errors.Is(abortErr, errNoRebase):
+		return err
+
+	case abortErr != nil:
+		return errors.Join(err, fmt.Errorf("rebase abort: %w", abortErr))
+
+	case ctx.Err() != nil:
+		return err
+
+	default:
+		return fmt.Errorf("%w: %w", ErrConflict, err)
+	}
+}
+
+// abortRebase aborts the rebase in progress in the repository, or returns
+// errNoRebase when there is none. It runs even when ctx is canceled, so a
+// canceled pull leaves no rebase behind, but no longer than 15s.
+func abortRebase(ctx context.Context, repo string) error {
+	ctx, cxl := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	defer cxl()
+	if _, err := runGitCmd(ctx, repo, "rebase", "--abort"); err != nil {
+		return err
+	}
+	return nil
+}
+
 // HasRemoteTag returns true if the remote, a configured remote name or a URL,
 // has the tag. Git never prompts: a missing credential, an unknown SSH host
 // key, or a passphrase the SSH agent cannot supply fails the query instead of
@@ -1678,6 +1752,15 @@ func gitErrorOr(msg string, err error) error {
 
 	case strings.Contains(msg, "already exists and is not an empty directory"):
 		return ErrNotEmpty
+
+	case strings.Contains(msg, "cannot pull with rebase:"):
+		return ErrDirty
+
+	case strings.Contains(msg, "specifies to merge with the ref"):
+		return ErrUpstreamGone
+
+	case strings.Contains(strings.ToLower(msg), "no rebase in progress"):
+		return errNoRebase
 
 	default:
 		if err == nil {

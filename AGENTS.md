@@ -42,7 +42,8 @@ The entire library is the single package `pkg/gitaid`:
    `Err*` sentinels at the top of `gitkit.go` (`ErrNotRepo`, `ErrEmptyRepo`,
    `ErrUnkRev`, `ErrNoTags`, `ErrNoRemote`, `ErrUnkTag`, `ErrUnkFile`,
    `ErrNotFile`, `ErrDetached`, `ErrNoUpstream`, `ErrUpstreamGone`,
-   `ErrBadArg`, `ErrNotEmpty`, `ErrGit`, plus `ErrBadBump` and `ErrRemote`,
+   `ErrBadArg`, `ErrNotEmpty`, `ErrDirty`, `ErrConflict`, `ErrGit`, plus
+   `ErrBadBump` and `ErrRemote`,
    which `HasRemoteTag` and `RemoteTags` return for any remote they cannot
    query). `gitErrorOr`
    maps git's English stderr text to these via substring matching; an
@@ -61,7 +62,7 @@ The entire library is the single package `pkg/gitaid`:
    `git archive` through `archive/tar` to fetch a single file from a remote
    without a full clone, and manages its own timeout/`WaitDelay`, and
    `Clone`, which streams git's output to the caller's writer and runs with
-   the `noPrompt` environment, and `Fetch` and `lsRemoteTags` (behind
+   the `noPrompt` environment, and `Fetch`, `Pull`, and `lsRemoteTags` (behind
    `HasRemoteTag` and `RemoteTags`), which run with the `noPrompt`
    environment too). Prefer
    routing new commands through `runGitCmd`; anything that must exec git
