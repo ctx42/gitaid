@@ -933,6 +933,36 @@ func CountCommits(ctx context.Context, repo, rev string) (int, error) {
 	return cnt, nil
 }
 
+// CountCommitsUnder returns the number of commits reachable from rev changing
+// a file under the directory repo, which may be any directory of the working
+// tree, the subdirectories excl, relative to repo, left out. The empty string
+// used for rev means HEAD. It returns [ErrBadArg] for rev or an element of
+// excl starting with a dash.
+func CountCommitsUnder(
+	ctx context.Context,
+	repo string,
+	rev string,
+	excl ...string,
+) (int, error) {
+
+	if err := noOption(append([]string{rev}, excl...)...); err != nil {
+		return 0, err
+	}
+	if rev == "" {
+		rev = "HEAD"
+	}
+	args := []string{"rev-list", "--count", rev, "--"}
+	sout, err := runGitCmd(ctx, repo, append(args, underSpec(excl)...)...)
+	if err != nil {
+		return 0, err
+	}
+	cnt, err := strconv.Atoi(sout)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", sout, err)
+	}
+	return cnt, nil
+}
+
 // Messages returns the full commit messages - the subject and the body of
 // each - for the commits in rng, oldest first. The rng is any revision range
 // git log accepts, for example "v1.2.3..HEAD"; the empty string means every
@@ -1756,6 +1786,9 @@ func gitErrorOr(msg string, err error) error {
 
 	case strings.Contains(msg, "bad revision 'HEAD'"):
 		return ErrEmptyRepo
+
+	case strings.Contains(msg, "bad revision "):
+		return ErrUnkRev
 
 	case strings.Contains(msg, "does not have any commits yet"):
 		return ErrEmptyRepo

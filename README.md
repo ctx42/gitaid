@@ -33,6 +33,7 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   list them.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `SemVerTag`, `Describe`, `Derive`, `Bumped`, `CountCommits`,
+  `CountCommitsUnder` to count the commits changing one directory,
   `Messages`, `ChangeLog`, and `IsHash` to check a commit hash. `SemVerTag`
   finds the closest version tag and the commits made since it, skipping tags
   that are not versions. `Describe` always returns a valid SemVer 2.0

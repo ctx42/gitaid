@@ -2609,6 +2609,102 @@ func Test_CountCommits(t *testing.T) {
 	})
 }
 
+func Test_CountCommitsUnder(t *testing.T) {
+	t.Run("counts commits changing the directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.CreateFileWith("file1 1", "sub", "file1.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file1 2", "sub", "file1.txt")
+		prj.GitCommit("")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		sub := filepath.Join(prj.Root(), "sub")
+
+		// --- When ---
+		have, err := CountCommitsUnder(ctx, sub, "v0.1.0..HEAD")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, 1, have)
+	})
+
+	t.Run("excluded directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.CreateFileWith("file1 1", "nested", "file1.txt")
+		prj.GitInitAddAll("v0.1.0")
+		prj.CreateFileWith("file1 2", "nested", "file1.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := CountCommitsUnder(ctx, prj.Root(), "v0.1.0..", "nested")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, 0, have)
+	})
+
+	t.Run("empty revision means HEAD", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := CountCommitsUnder(ctx, prj.Root(), "")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, 2, have)
+	})
+
+	t.Run("error - unknown revision", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := CountCommitsUnder(ctx, prj.Root(), "v9.9.9..HEAD")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.Equal(t, 0, have)
+	})
+
+	t.Run("error - revision looks like an option", func(t *testing.T) {
+		// --- When ---
+		have, err := CountCommitsUnder(t.Context(), t.TempDir(), "--all")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Equal(t, 0, have)
+	})
+
+	t.Run("error - excluded directory like an option", func(t *testing.T) {
+		// --- When ---
+		have, err := CountCommitsUnder(t.Context(), t.TempDir(), "", "-x")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Equal(t, 0, have)
+	})
+}
+
 func Test_Messages(t *testing.T) {
 	t.Run("keeps the body as well as the subject", func(t *testing.T) {
 		// --- Given ---
@@ -5613,6 +5709,12 @@ func Test_gitErrorOr_tabular(t *testing.T) {
 			"bad revision 'HEAD'",
 			ErrTest,
 			ErrEmptyRepo,
+		},
+		{
+			"bad revision unknown rev",
+			"bad revision 'v9.9.9..HEAD'",
+			ErrTest,
+			ErrUnkRev,
 		},
 		{
 			"no commits yet empty repo",
