@@ -3183,6 +3183,134 @@ func Test_IsClean(t *testing.T) {
 	})
 }
 
+func Test_IsCleanUnder(t *testing.T) {
+	t.Run("clean directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "sub", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file1 1", "file1.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := IsCleanUnder(ctx, filepath.Join(prj.Root(), "sub"))
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.True(t, have)
+	})
+
+	t.Run("modified file", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "sub", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "sub", "file0.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := IsCleanUnder(ctx, filepath.Join(prj.Root(), "sub"))
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.False(t, have)
+	})
+
+	t.Run("untracked file", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file1 1", "file1.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := IsCleanUnder(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.False(t, have)
+	})
+
+	t.Run("excluded directory", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.CreateFileWith("file1 1", "nested", "file1.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file1 2", "nested", "file1.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := IsCleanUnder(ctx, prj.Root(), "nested")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.True(t, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := IsCleanUnder(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.False(t, have)
+	})
+
+	t.Run("error - excluded directory like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := IsCleanUnder(ctx, prj.Root(), "--all")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.False(t, have)
+	})
+}
+
+func Test_underSpec_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		excl []string
+		want []string
+	}{
+		{"none", nil, []string{"."}},
+		{"one", []string{"a"}, []string{".", ":(exclude)a"}},
+		{
+			"nested path",
+			[]string{"a/b", "c"},
+			[]string{".", ":(exclude)a/b", ":(exclude)c"},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			have := underSpec(tc.excl)
+
+			// --- Then ---
+			assert.Equal(t, tc.want, have)
+		})
+	}
+}
+
 func Test_WorkTreeStatus(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---

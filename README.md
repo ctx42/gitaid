@@ -26,6 +26,7 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
 ## Features
 
 - **Repository inspection** — `IsRepo`, `IsEmpty`, `IsClean`,
+  `IsCleanUnder` to check one directory of the working tree,
   `WorkTreeStatus`, `Staged`, `Branch`, `Upstream`, `AheadBehind`,
   `ProjectName`, `ProjectOrigin`, `TopLevel`, `HasTag` / `HasRemoteTag` to
   check a tag exists locally or on a remote, and `Tags` / `RemoteTags` to

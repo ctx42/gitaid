@@ -1053,6 +1053,37 @@ func IsClean(ctx context.Context, repo string) (bool, error) {
 	return sout == "", nil
 }
 
+// IsCleanUnder returns true if no file under the directory repo, which may be
+// any directory of the working tree, is modified, staged, or untracked, the
+// subdirectories excl, relative to repo, left out. Files ignored by git do not
+// count. It returns [ErrBadArg] for an element of excl starting with a dash.
+func IsCleanUnder(
+	ctx context.Context,
+	repo string,
+	excl ...string,
+) (bool, error) {
+
+	if err := noOption(excl...); err != nil {
+		return false, err
+	}
+	args := []string{"status", "--porcelain", "--"}
+	sout, err := runGitCmd(ctx, repo, append(args, underSpec(excl)...)...)
+	if err != nil {
+		return false, err
+	}
+	return sout == "", nil
+}
+
+// underSpec returns the pathspecs selecting the directory git runs in, but the
+// subdirectories excl, relative to it.
+func underSpec(excl []string) []string {
+	spec := []string{"."}
+	for _, dir := range excl {
+		spec = append(spec, ":(exclude)"+filepath.ToSlash(dir))
+	}
+	return spec
+}
+
 // WorkTreeStatus returns the working tree status: [StateClean] or
 // [StateDirty].
 func WorkTreeStatus(ctx context.Context, repo string) (string, error) {
