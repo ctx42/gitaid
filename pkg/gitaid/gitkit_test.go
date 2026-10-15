@@ -4713,6 +4713,191 @@ func Test_abortRebase(t *testing.T) {
 	})
 }
 
+func Test_PullAutostash(t *testing.T) {
+	t.Run("applies the changes back", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file1 1", "file1.txt")
+		other.GitCommit("", "test commit 2")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Close()
+
+		// --- When ---
+		err := PullAutostash(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+
+		want := other.ExeStdout("git", "rev-parse", "HEAD")
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+		assert.Equal(t, "file0 2", prj.ReadFileStr("file0.txt"))
+		assert.Equal(t, "file1 1", prj.ReadFileStr("file1.txt"))
+		assert.Equal(t, "", prj.ExeStdout("git", "stash", "list"))
+	})
+
+	t.Run("up to date", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", Bare(t), ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.Close()
+
+		want := prj.ExeStdout("git", "rev-parse", "HEAD")
+
+		// --- When ---
+		err := PullAutostash(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+		assert.Equal(t, "file0 2", prj.ReadFileStr("file0.txt"))
+	})
+
+	t.Run("error - stashed changes conflict", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file0 3", "file0.txt")
+		other.GitCommit("", "test commit 2")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Close()
+
+		// --- When ---
+		err := PullAutostash(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrConflict, err)
+		assert.ErrorContain(t, "stashed changes: file0.txt", err)
+
+		want := other.ExeStdout("git", "rev-parse", "HEAD")
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+		assert.Contain(t, "autostash", prj.ExeStdout("git", "stash", "list"))
+	})
+
+	t.Run("error - rebase conflict stays in progress", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", "test commit 2")
+		prj.CreateFileWith("file1 1", "file1.txt")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file0 3", "file0.txt")
+		other.GitCommit("", "test commit 3")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Close()
+
+		// --- When ---
+		err := PullAutostash(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrConflict, err)
+		assert.True(t, must.Value(inRebase(ctx, prj.Root())))
+	})
+
+	t.Run("error - no upstream", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		err := PullAutostash(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNoUpstream, err)
+	})
+}
+
+func Test_inRebase(t *testing.T) {
+	t.Run("rebase in progress", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "checkout", "-b", "side")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("", "test commit 2")
+		prj.Exe("git", "checkout", prjkit.GitBranch)
+		prj.CreateFileWith("file0 3", "file0.txt")
+		prj.GitCommit("", "test commit 3")
+		prj.Close()
+
+		cmd := exec.Command("git", "rebase", "side")
+		cmd.Dir = prj.Root()
+		_ = cmd.Run() // Stops on the conflict.
+
+		// --- When ---
+		have, err := inRebase(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.True(t, have)
+	})
+
+	t.Run("no rebase", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := inRebase(t.Context(), prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.False(t, have)
+	})
+
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- When ---
+		have, err := inRebase(t.Context(), t.TempDir())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.False(t, have)
+	})
+}
+
 func Test_HasRemoteTag(t *testing.T) {
 	t.Run("existing tag", func(t *testing.T) {
 		// --- Given ---

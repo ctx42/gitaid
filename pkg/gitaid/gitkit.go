@@ -1439,6 +1439,83 @@ func abortRebase(ctx context.Context, repo string) error {
 	return nil
 }
 
+// PullAutostash pulls as [Pull] does, but stashes the uncommitted changes
+// first and applies them back once the branch is rebased, as "git pull
+// --rebase --autostash" does. A conflict returns [ErrConflict] and leaves the
+// repository as git leaves it, for the user to resolve: a rebase stopped by a
+// conflict stays in progress with the changes kept by it, and changes whose
+// apply conflicts stay in the stash with the conflicted files in the working
+// tree. A rebase left in progress by the cancellation of ctx is aborted,
+// which applies the changes back. It returns the errors [Upstream] returns
+// when there is no upstream to pull from. The empty string used for repo
+// means the current working directory.
+func PullAutostash(ctx context.Context, repo string) error {
+	if _, err := Upstream(ctx, repo); err != nil {
+		return err
+	}
+	eout := &bytes.Buffer{}
+	args := []string{"pull", "--quiet", "--rebase", "--autostash"}
+	cmd := gitCommand(ctx, args...)
+	cmd.Env = noPrompt(cmd.Env)
+	cmd.Dir = repo
+	cmd.Stderr = eout
+	pullErr := cmd.Run()
+	if pullErr != nil {
+		pullErr = gitErrorOr(gitMessage(eout.String()), pullErr)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			abortErr := abortRebase(ctx, repo)
+			if abortErr != nil && !errors.Is(abortErr, errNoRebase) {
+				abortErr = fmt.Errorf("rebase abort: %w", abortErr)
+				return errors.Join(ctxErr, abortErr)
+			}
+			return ctxErr
+		}
+	}
+	// A rebase stopped by a conflict fails the pull, but an apply of the
+	// stashed changes conflicting does not.
+	rebasing, err := inRebase(ctx, repo)
+	if err != nil {
+		return errors.Join(pullErr, err)
+	}
+	if rebasing {
+		return errors.Join(ErrConflict, pullErr)
+	}
+	if pullErr != nil {
+		return pullErr
+	}
+	args = []string{"diff", "--name-only", "--diff-filter=U"}
+	files, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return err
+	}
+	if files != "" {
+		lst := strings.Join(strings.Fields(files), ", ")
+		return fmt.Errorf("%w: stashed changes: %s", ErrConflict, lst)
+	}
+	return nil
+}
+
+// inRebase reports whether a rebase is in progress in the repository.
+func inRebase(ctx context.Context, repo string) (bool, error) {
+	for _, name := range []string{"rebase-merge", "rebase-apply"} {
+		pth, err := runGitCmd(ctx, repo, "rev-parse", "--git-path", name)
+		if err != nil {
+			return false, err
+		}
+		if !filepath.IsAbs(pth) {
+			pth = filepath.Join(repo, pth)
+		}
+		_, err = os.Stat(pth)
+		if err == nil {
+			return true, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return false, fmt.Errorf("rebase state: %w", err)
+		}
+	}
+	return false, nil
+}
+
 // HasRemoteTag returns true if the remote, a configured remote name or a URL,
 // has the tag. Git never prompts: a missing credential, an unknown SSH host
 // key, or a passphrase the SSH agent cannot supply fails the query instead of

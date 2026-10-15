@@ -62,7 +62,8 @@ The entire library is the single package `pkg/gitaid`:
    `git archive` through `archive/tar` to fetch a single file from a remote
    without a full clone, and manages its own timeout/`WaitDelay`, and
    `Clone`, which streams git's output to the caller's writer and runs with
-   the `noPrompt` environment, and `Fetch`, `Pull`, and `lsRemoteTags` (behind
+   the `noPrompt` environment, and `Fetch`, `Pull`, `PullAutostash`, and
+   `lsRemoteTags` (behind
    `HasRemoteTag` and `RemoteTags`), which run with the `noPrompt`
    environment too). Prefer
    routing new commands through `runGitCmd`; anything that must exec git
