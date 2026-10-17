@@ -1,3 +1,7 @@
+## v0.18.1 (Sat, 17 Oct 2026 22:03:09 UTC)
+- ci: set C42_CC_RUN_ID in the workflow environment.
+- chore(deps): update dependencies.
+
 ## v0.18.0 (Thu, 15 Oct 2026 09:48:06 UTC)
 - feat(gitaid): add IsCleanUnder to check one directory.
 - feat(gitaid): add CountCommitsUnder to count one directory's commits.
