@@ -4494,6 +4494,79 @@ func Test_Pull(t *testing.T) {
 		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
 	})
 
+	t.Run("syncs tags", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.Exe("git", "tag", "v0.1.0")
+		prj.Exe("git", "push", "origin", "v0.1.0")
+		prj.Exe("git", "tag", "v0.2.0")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file1 1", "file1.txt")
+		other.GitCommit("", "test commit 2")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Exe("git", "tag", "--force", "v0.1.0")
+		other.Exe("git", "tag", "v0.1.1")
+		other.Exe("git", "push", "--force", "origin", "v0.1.0", "v0.1.1")
+		other.Close()
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.NoError(t, err)
+
+		want := other.ExeStdout("git", "rev-parse", "HEAD")
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "v0.1.0"))
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "v0.1.1"))
+		wTags := []string{"v0.1.0", "v0.1.1", "v0.2.0"}
+		assert.Equal(t, wTags, must.Value(Tags(ctx, prj.Root())))
+	})
+
+	t.Run("error - dirty syncs tags", func(t *testing.T) {
+		// --- Given ---
+		bare := Bare(t)
+
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "clone", bare, ".")
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitCommit("", "test commit 1")
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.Close()
+
+		other := prjkit.New(t, t.TempDir())
+		other.Exe("git", "clone", bare, ".")
+		other.CreateFileWith("file1 1", "file1.txt")
+		other.GitCommit("", "test commit 2")
+		other.Exe("git", "push", "origin", "HEAD")
+		other.Exe("git", "tag", "v0.1.0")
+		other.Exe("git", "push", "origin", "v0.1.0")
+		other.Close()
+
+		want := prj.ExeStdout("git", "rev-parse", "HEAD")
+
+		// --- When ---
+		err := Pull(ctx, prj.Root())
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrDirty, err)
+		assert.Equal(t, want, prj.ExeStdout("git", "rev-parse", "HEAD"))
+		assert.Equal(t, "file0 2", prj.ReadFileStr("file0.txt"))
+		wTag := other.ExeStdout("git", "rev-parse", "HEAD")
+		assert.Equal(t, wTag, prj.ExeStdout("git", "rev-parse", "v0.1.0"))
+	})
+
 	t.Run("error - dirty", func(t *testing.T) {
 		// --- Given ---
 		bare := Bare(t)

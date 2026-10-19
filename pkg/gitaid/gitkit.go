@@ -1379,22 +1379,27 @@ func Fetch(ctx context.Context, repo string) error {
 
 // Pull fetches the upstream of the branch checked out in the repository and
 // rebases the branch onto it, as "git pull --rebase" does; a branch with no
-// commits of its own is fast-forwarded. Uncommitted changes are never
-// stashed: with changes to tracked files it returns [ErrDirty] and leaves the
-// branch alone. A rebase stopped by a conflict is aborted, restoring the
-// branch and the working tree, and [ErrConflict] is returned. It returns the
-// errors [Upstream] returns when there is no upstream to pull from, and
-// [ErrUpstreamGone] also when the fetch finds the upstream deleted. Git never
-// prompts: a missing credential, an unknown SSH host key, or a passphrase the
-// SSH agent cannot supply fails the pull instead of waiting for input. The
-// pull has no default timeout; ctx bounds it, and a rebase left in progress
-// by its cancellation is aborted. The empty string used for repo means the
-// current working directory.
+// commits of its own is fast-forwarded. Before the rebase it fetches the tags
+// of the upstream's remote, moving a local tag the remote moved; tags only the
+// repository has are kept. Tags are fetched also when the rebase does not run.
+// Uncommitted changes are never stashed: with changes to tracked files it
+// returns [ErrDirty] and leaves the branch alone. A rebase stopped by a
+// conflict is aborted, restoring the branch and the working tree, and
+// [ErrConflict] is returned. It returns the errors [Upstream] returns when
+// there is no upstream to pull from, and [ErrUpstreamGone] also when the
+// fetch finds the upstream deleted. Git never prompts: a missing credential,
+// an unknown SSH host key, or a passphrase the SSH agent cannot supply fails
+// the pull instead of waiting for input. The pull has no default timeout; ctx
+// bounds it, and a rebase left in progress by its cancellation is aborted.
+// The empty string used for repo means the current working directory.
 func Pull(ctx context.Context, repo string) error {
 	// Upstream also makes sure HEAD is attached, which it is not while a
 	// rebase is in progress, so any rebase found after a failure is the
 	// pull's own.
 	if _, err := Upstream(ctx, repo); err != nil {
+		return err
+	}
+	if err := fetchTags(ctx, repo); err != nil {
 		return err
 	}
 	eout := &bytes.Buffer{}
@@ -1425,6 +1430,39 @@ func Pull(ctx context.Context, repo string) error {
 	default:
 		return fmt.Errorf("%w: %w", ErrConflict, err)
 	}
+}
+
+// fetchTags fetches the tags of the remote of the checked-out branch's
+// upstream into the repository, replacing a local tag the remote points
+// elsewhere; tags missing on the remote stay. The branch must have an
+// upstream.
+func fetchTags(ctx context.Context, repo string) error {
+	branch, err := Branch(ctx, repo)
+	if err != nil {
+		return err
+	}
+	args := []string{
+		"for-each-ref",
+		"--format=%(upstream:remotename)",
+		"refs/heads/" + branch,
+	}
+	remote, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		return err
+	}
+	eout := &bytes.Buffer{}
+	args = []string{"fetch", "--quiet", "--tags", "--force", remote}
+	cmd := gitCommand(ctx, args...)
+	cmd.Env = noPrompt(cmd.Env)
+	cmd.Dir = repo
+	cmd.Stderr = eout
+	if err = cmd.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		return gitErrorOr(gitMessage(eout.String()), err)
+	}
+	return nil
 }
 
 // abortRebase aborts the rebase in progress in the repository, or returns
