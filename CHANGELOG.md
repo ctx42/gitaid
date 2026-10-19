@@ -1,3 +1,6 @@
+## v0.19.0 (Mon, 19 Oct 2026 13:30:51 UTC)
+- feat(gitaid): fetch the upstream remote's tags in Pull.
+
 ## v0.18.1 (Sat, 17 Oct 2026 22:03:09 UTC)
 - ci: set C42_CC_RUN_ID in the workflow environment.
 - chore(deps): update dependencies.
