@@ -1244,6 +1244,121 @@ func HashFiles(
 	return ids, nil
 }
 
+// ChangedLines returns the numbers of the lines the working tree under repo
+// adds or changes against the revision rev, sorted, keyed by the path,
+// relative to repo, of the file holding them, for the files the pathspecs
+// match, or every file when none is given. Staged and unstaged changes count,
+// and an untracked file git does not ignore counts in full. A file whose
+// changes only delete lines is left out. It returns [ErrBadArg] for a rev
+// starting with a dash, [ErrNotRepo] outside a repository, [ErrEmptyRepo] for
+// HEAD in a repository without commits, and [ErrUnkRev] for another unknown
+// rev. The empty string used for repo means the current working directory.
+func ChangedLines(
+	ctx context.Context,
+	repo, rev string,
+	pathspecs ...string,
+) (map[string][]int, error) {
+
+	if err := noOption(rev); err != nil {
+		return nil, err
+	}
+	if err := IsRepo(ctx, repo); err != nil {
+		return nil, err
+	}
+	args := []string{
+		"diff", "--no-color", "--no-ext-diff", "--no-renames", "--relative",
+		"-U0", rev, "--",
+	}
+	sout, err := runGitCmd(ctx, repo, append(args, pathspecs...)...)
+	if err != nil {
+		return nil, err
+	}
+	lines := diffLines(sout)
+
+	args = []string{"ls-files", "-z", "--others", "--exclude-standard", "--"}
+	sout, err = runGitCmd(ctx, repo, append(args, pathspecs...)...)
+	if err != nil {
+		return nil, err
+	}
+	for pth := range strings.SplitSeq(sout, "\x00") {
+		if pth == "" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(repo, pth)) //nolint:gosec
+		if err != nil {
+			continue // A nested repository, or deleted since.
+		}
+		cnt := bytes.Count(data, []byte("\n"))
+		if len(data) > 0 && data[len(data)-1] != '\n' {
+			cnt++
+		}
+		for num := 1; num <= cnt; num++ {
+			lines[pth] = append(lines[pth], num)
+		}
+	}
+	return lines, nil
+}
+
+// diffLines returns the numbers of the lines the "git diff -U0" output out
+// adds or changes, keyed by the path of the file holding them, the path the
+// "+++" line of the file names without its "b/" prefix.
+func diffLines(out string) map[string][]int {
+	lines := make(map[string][]int)
+	var pth string
+	for line := range strings.SplitSeq(out, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+++ "):
+			pth = diffPath(strings.TrimPrefix(line, "+++ "))
+
+		case strings.HasPrefix(line, "@@ ") && pth != "":
+			start, cnt := hunkLines(line)
+			for num := start; num < start+cnt; num++ {
+				lines[pth] = append(lines[pth], num)
+			}
+		}
+	}
+	return lines
+}
+
+// diffPath returns the path a "+++" line of "git diff" names: name without
+// the trailing tab git adds after a name holding a space, unquoted when git
+// quotes it, and without its "b/" prefix; empty for "/dev/null", a deleted
+// file.
+func diffPath(name string) string {
+	name = strings.TrimSuffix(name, "\t")
+	if unq, err := strconv.Unquote(name); err == nil {
+		name = unq
+	}
+	pth, _ := strings.CutPrefix(name, "b/")
+	if name == "/dev/null" {
+		return ""
+	}
+	return pth
+}
+
+// hunkLines returns the first line number and the number of lines the new
+// side of the "git diff" hunk header line covers: "+<start>,<count>", where
+// a missing count means one line.
+func hunkLines(line string) (int, int) {
+	fields := strings.Fields(line)
+	if len(fields) < 3 {
+		return 0, 0
+	}
+	start, cnt, ok := strings.Cut(strings.TrimPrefix(fields[2], "+"), ",")
+	first, err := strconv.Atoi(start)
+	if err != nil {
+		return 0, 0
+	}
+	if !ok {
+		return first, 1
+	}
+	num, err := strconv.Atoi(cnt)
+	if err != nil {
+		return 0, 0
+	}
+	return first, num
+}
+
 // Commit commits with a message. The empty string used for repo means the
 // current working directory.
 func Commit(ctx context.Context, repo, msg string) error {

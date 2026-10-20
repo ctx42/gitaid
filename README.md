@@ -29,8 +29,9 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   `IsCleanUnder` to check one directory of the working tree,
   `WorkTreeStatus`, `Staged`, `Branch`, `Upstream`, `AheadBehind`,
   `ProjectName`, `ProjectOrigin`, `TopLevel`, `HasTag` / `HasRemoteTag` to
-  check a tag exists locally or on a remote, and `Tags` / `RemoteTags` to
-  list them.
+  check a tag exists locally or on a remote, `Tags` / `RemoteTags` to
+  list them, and `ChangedLines` for the line numbers the working tree adds
+  or changes against a revision.
 - **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
   `ClosestTag`, `SemVerTag`, `Describe`, `Derive`, `Bumped`, `CountCommits`,
   `CountCommitsUnder` to count the commits changing one directory,

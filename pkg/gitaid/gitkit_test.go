@@ -3758,6 +3758,236 @@ func Test_HashFiles(t *testing.T) {
 	})
 }
 
+func Test_ChangedLines(t *testing.T) {
+	t.Run("staged unstaged and untracked", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("bin\n", ".gitignore")
+		prj.CreateFileWith("a1\na2\na3\n", "a.go")
+		prj.CreateFileWith("b1\nb2\n", "b.go")
+		prj.CreateFileWith("c1\nc2\n", "c.go")
+		prj.CreateFileWith("gone\n", "gone.go")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("a1\nA2\na3\na4\n", "a.go")
+		prj.CreateFileWith("B1\nb2\n", "b.go")
+		prj.Exe("git", "add", "b.go")
+		prj.CreateFileWith("c2\n", "c.go")
+		prj.CreateFileWith("n1\nn2", "new.go")
+		prj.CreateFileWith("x\n", "bin")
+		prj.Exe("rm", "gone.go")
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangedLines(t.Context(), prj.Root(), "HEAD")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		want := map[string][]int{
+			"a.go":   {2, 4},
+			"b.go":   {1},
+			"new.go": {1, 2},
+		}
+		assert.Equal(t, want, have)
+	})
+
+	t.Run("pathspecs", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("a\n", "a.go")
+		prj.CreateFileWith("t\n", "a.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("A\n", "a.go")
+		prj.CreateFileWith("T\n", "a.txt")
+		prj.CreateFileWith("n\n", "n.txt")
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangedLines(t.Context(), prj.Root(), "HEAD", "*.go")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, map[string][]int{"a.go": {1}}, have)
+	})
+
+	t.Run("subdirectory and names with spaces", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("a\n", "a.go")
+		prj.CreateFileWith("c\n", "sub", "c d.go")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("A\n", "a.go")
+		prj.CreateFileWith("c\nC\n", "sub", "c d.go")
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangedLines(t.Context(), prj.Path("sub"), "HEAD")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, map[string][]int{"c d.go": {2}}, have)
+	})
+
+	t.Run("older revision", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("a\n", "a.go")
+		prj.GitInitAddAll("v1.0.0")
+		prj.CreateFileWith("a\nb\n", "a.go")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangedLines(t.Context(), prj.Root(), "v1.0.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, map[string][]int{"a.go": {2}}, have)
+	})
+
+	t.Run("no changes", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("a\n", "a.go")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangedLines(t.Context(), prj.Root(), "HEAD")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - option as revision", func(t *testing.T) {
+		// --- When ---
+		have, err := ChangedLines(t.Context(), t.TempDir(), "--output=x")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - not a repository", func(t *testing.T) {
+		// --- When ---
+		have, err := ChangedLines(t.Context(), t.TempDir(), "HEAD")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - no commits", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangedLines(t.Context(), prj.Root(), "HEAD")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrEmptyRepo, err)
+		assert.Nil(t, have)
+	})
+
+	t.Run("error - unknown revision", func(t *testing.T) {
+		// --- Given ---
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("a\n", "a.go")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := ChangedLines(t.Context(), prj.Root(), "v9.9.9")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.Nil(t, have)
+	})
+}
+
+func Test_diffLines(t *testing.T) {
+	// --- Given ---
+	out := "" +
+		"diff --git a/a.go b/a.go\n" +
+		"--- a/a.go\n" +
+		"+++ b/a.go\n" +
+		"@@ -2 +2 @@\n" +
+		"-a2\n" +
+		"+A2\n" +
+		"@@ -3,0 +4,2 @@ func x()\n" +
+		"+a4\n" +
+		"+a5\n" +
+		"diff --git a/gone.go b/gone.go\n" +
+		"--- a/gone.go\n" +
+		"+++ /dev/null\n" +
+		"@@ -1 +0,0 @@\n" +
+		"-gone\n" +
+		"diff --git a/b.go b/b.go\n" +
+		"--- a/b.go\n" +
+		"+++ b/b.go\n" +
+		"@@ -1,2 +0,0 @@\n"
+
+	// --- When ---
+	have := diffLines(out)
+
+	// --- Then ---
+	assert.Equal(t, map[string][]int{"a.go": {2, 4, 5}}, have)
+}
+
+func Test_diffPath_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		name string
+		want string
+	}{
+		{"plain", "b/pkg/a.go", "pkg/a.go"},
+		{"space", "b/c d.go\t", "c d.go"},
+		{"quoted", `"b/\303\251.go"`, "é.go"},
+		{"deleted", "/dev/null", ""},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			have := diffPath(tc.name)
+
+			// --- Then ---
+			assert.Equal(t, tc.want, have)
+		})
+	}
+}
+
+func Test_hunkLines_tabular(t *testing.T) {
+	tt := []struct {
+		testN string
+
+		line  string
+		start int
+		cnt   int
+	}{
+		{"start and count", "@@ -3,0 +4,2 @@ func x()", 4, 2},
+		{"one line", "@@ -2 +2 @@", 2, 1},
+		{"deletion", "@@ -1,2 +0,0 @@", 0, 0},
+		{"too short", "@@ -1", 0, 0},
+		{"bad start", "@@ -1 +x @@", 0, 0},
+		{"bad count", "@@ -1 +1,x @@", 0, 0},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testN, func(t *testing.T) {
+			// --- When ---
+			start, cnt := hunkLines(tc.line)
+
+			// --- Then ---
+			assert.Equal(t, tc.start, start)
+			assert.Equal(t, tc.cnt, cnt)
+		})
+	}
+}
+
 func Test_Commit(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
