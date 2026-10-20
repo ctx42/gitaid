@@ -1,3 +1,6 @@
+## v0.20.0 (Tue, 20 Oct 2026 20:31:35 UTC)
+- feat(gitaid): add ChangedLines for lines changed since a revision.
+
 ## v0.19.0 (Mon, 19 Oct 2026 13:30:51 UTC)
 - feat(gitaid): fetch the upstream remote's tags in Pull.
 
