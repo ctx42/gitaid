@@ -346,6 +346,28 @@ func RevDate(ctx context.Context, repo, rev string) (time.Time, error) {
 	return time.Unix(ts, 0), nil
 }
 
+// RevHash returns the full hash of the commit the given revision resolves to.
+// A tag, annotated or not, resolves to the commit it points at. It returns
+// [ErrUnkRev] when the revision does not name a commit, which includes an
+// empty repository and, for "@{upstream}", a branch with no upstream.
+func RevHash(ctx context.Context, repo, rev string) (string, error) {
+	if err := noOption(rev); err != nil {
+		return "", err
+	}
+	args := []string{"rev-parse", "-q", "--verify", rev + "^{commit}"}
+	hash, err := runGitCmd(ctx, repo, args...)
+	if err != nil {
+		// A quiet "--verify" exits 1 without a message when the revision is
+		// unknown; anything else is a real failure.
+		ee, ok := errors.AsType[*exec.ExitError](err)
+		if !ok || ee.ExitCode() != 1 {
+			return "", err
+		}
+		return "", fmt.Errorf("%w: %s", ErrUnkRev, rev)
+	}
+	return hash, nil
+}
+
 // ClosestTag returns the closest tag reachable from HEAD or, when startRev is
 // set, from the parent of startRev, so that a tag on startRev itself is
 // skipped. A root startRev has no parent to search from, so it is returned

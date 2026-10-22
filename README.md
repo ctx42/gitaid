@@ -32,8 +32,9 @@ of **sentinel errors** you can match with `errors.Is`, so your code branches on
   check a tag exists locally or on a remote, `Tags` / `RemoteTags` to
   list them, and `ChangedLines` for the line numbers the working tree adds
   or changes against a revision.
-- **History and versioning** — `FirstHash`, `LatestHash`, `RevDate`,
-  `ClosestTag`, `SemVerTag`, `Describe`, `Derive`, `Bumped`, `CountCommits`,
+- **History and versioning** — `FirstHash`, `LatestHash`, `RevHash` for
+  the full commit hash a revision resolves to, `RevDate`, `ClosestTag`,
+  `SemVerTag`, `Describe`, `Derive`, `Bumped`, `CountCommits`,
   `CountCommitsUnder` to count the commits changing one directory,
   `Messages`, `ChangeLog`, and `IsHash` to check a commit hash. `SemVerTag`
   finds the closest version tag and the commits made since it, skipping tags

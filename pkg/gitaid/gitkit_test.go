@@ -1066,6 +1066,161 @@ func Test_RevDate(t *testing.T) {
 	})
 }
 
+func Test_RevHash(t *testing.T) {
+	t.Run("error - not git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "HEAD")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrNotRepo, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - empty git repo", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.Exe("git", "init")
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "HEAD")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.ErrorContain(t, "HEAD", err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "HEAD~1")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		want := prj.ExeStdout("git", "rev-parse", "HEAD~1")
+		assert.Equal(t, strings.TrimSpace(want), have)
+	})
+
+	t.Run("annotated tag", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "tag", "-a", "-m", "release", "v0.1.0")
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "v0.1.0")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		want := prj.ExeStdout("git", "rev-parse", "HEAD")
+		assert.Equal(t, strings.TrimSpace(want), have)
+	})
+
+	t.Run("upstream", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		bare := Bare(t)
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Exe("git", "remote", "add", "origin", bare)
+		prj.Exe("git", "push", "-u", "origin", "HEAD")
+		want := strings.TrimSpace(prj.ExeStdout("git", "rev-parse", "HEAD"))
+		prj.CreateFileWith("file0 2", "file0.txt")
+		prj.GitCommit("")
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "@{upstream}")
+
+		// --- Then ---
+		assert.NoError(t, err)
+		assert.Equal(t, want, have)
+	})
+
+	t.Run("error - no upstream", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "@{upstream}")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - not existing revision", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "not_existing")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - revision is not a commit", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "HEAD^{tree}")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrUnkRev, err)
+		assert.Empty(t, have)
+	})
+
+	t.Run("error - revision looks like an option", func(t *testing.T) {
+		// --- Given ---
+		ctx := t.Context()
+		prj := prjkit.New(t, t.TempDir())
+		prj.CreateFileWith("file0 1", "file0.txt")
+		prj.GitInitAddAll()
+		prj.Close()
+
+		// --- When ---
+		have, err := RevHash(ctx, prj.Root(), "--all")
+
+		// --- Then ---
+		assert.ErrorIs(t, ErrBadArg, err)
+		assert.Empty(t, have)
+	})
+}
+
 func Test_ClosestTag(t *testing.T) {
 	t.Run("error - not git repo", func(t *testing.T) {
 		// --- Given ---
