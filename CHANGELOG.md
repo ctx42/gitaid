@@ -1,3 +1,6 @@
+## v0.21.0 (Thu, 22 Oct 2026 12:18:52 UTC)
+- feat(gitaid): add RevHash to resolve a revision to its commit.
+
 ## v0.20.0 (Tue, 20 Oct 2026 20:31:35 UTC)
 - feat(gitaid): add ChangedLines for lines changed since a revision.
 
